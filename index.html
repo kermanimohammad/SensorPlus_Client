@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Digital Twin (Babylon + MQTT)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root{
+        --panel-bg: rgba(12,16,28,0.78);
+        --panel-bd: rgba(255,255,255,0.12);
+        --chip-bg: rgba(0,0,0,0.55);
+        --accent: #6ee7b7;
+        --accent-2: #60a5fa;
+        --text: #e5e7eb;
+        --muted: #9ca3af;
+        --hover: rgba(255,255,255,0.08);
+      }
+      *{box-sizing:border-box}
+      html,body,#app,#renderCanvas{height:100%;width:100%;margin:0;padding:0}
+      body{overflow:hidden;background:#0a0e1a;color:var(--text);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+
+      /* ===== Drawer (right panel) ===== */
+      .drawer{
+        position:fixed;right:12px;top:12px;bottom:12px;z-index:25;
+        width:360px;max-width:calc(100% - 24px);
+        display:grid;grid-template-rows:auto auto auto 1fr auto;
+        background:var(--panel-bg);border:1px solid var(--panel-bd);
+        border-radius:14px;backdrop-filter:blur(10px);
+        transform:translateX(0);transition:transform .25s ease,opacity .2s ease;
+      }
+      .drawer.collapsed{transform:translateX(calc(100% + 12px));opacity:.98;pointer-events:none}
+
+      .drawer-header{
+        display:flex;align-items:center;justify-content:space-between;
+        padding:8px 10px;border-bottom:1px solid var(--panel-bd)
+      }
+      .drawer-title{font-weight:600;letter-spacing:.2px}
+      .status-line{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);padding:6px 10px}
+      .dot{width:8px;height:8px;border-radius:50%;background:#ef4444;box-shadow:0 0 12px rgba(239,68,68,.7)}
+      .dot.ok{background:#10b981;box-shadow:0 0 12px rgba(16,185,129,.7)}
+      code{color:var(--accent-2);background:rgba(255,255,255,.06);padding:2px 6px;border-radius:6px}
+
+      /* compact tab bar */
+      .tabs{display:flex;gap:6px;padding:6px 8px;border-bottom:1px solid var(--panel-bd)}
+      .tab{padding:6px 8px;border-radius:10px;cursor:pointer;color:var(--muted);user-select:none}
+      .tab.active{background:var(--hover);color:var(--text)}
+
+      /* ===== Panels (no big gap) ===== */
+      .panel{display:none;padding:6px 10px 10px;overflow:auto}
+      .panel.active{display:block}
+
+      .row{display:grid;grid-template-columns:1fr;gap:6px;margin:6px 0 0}
+      .row.inline{grid-template-columns:1fr 1fr;gap:8px}
+      label{color:var(--muted);font-size:12px}
+      input[type="text"],input[type="number"],input[type="password"],select{
+        width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--panel-bd);
+        background:rgba(255,255,255,.05);color:var(--text);outline:none
+      }
+      input[type="color"]{width:100%;height:34px;padding:3px;border-radius:10px;border:1px solid var(--panel-bd);background:rgba(255,255,255,.05)}
+      .btn{padding:8px 10px;border-radius:10px;border:1px solid var(--panel-bd);background:rgba(255,255,255,.05);color:var(--text);cursor:pointer}
+      .btn:hover{background:var(--hover)}
+      .btn.primary{border-color:transparent;background:linear-gradient(135deg,#6ee7b7 0%,#60a5fa 100%);color:#0b1020;font-weight:600}
+      .btn.ghost{background:transparent}
+
+      .drawer-footer{padding:8px 10px;border-top:1px solid var(--panel-bd);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted)}
+      .footer-broker code{margin-left:6px}
+
+      .floating-open{
+        position:fixed;left:12px;top:12px;z-index:30;
+        background:rgba(0,0,0,0.55);border:1px solid var(--panel-bd);
+        padding:6px 10px;border-radius:999px;color:var(--text);cursor:pointer
+      }
+
+      .list{border:1px solid var(--panel-bd);background:rgba(255,255,255,.04);border-radius:10px;padding:6px;min-height:40px;max-height:160px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+      .list .chip{display:inline-block;margin:4px 6px 0 0;padding:4px 8px;border-radius:999px;background:rgba(0,0,0,.35);border:1px solid var(--panel-bd);color:var(--text)}
+
+      #app{position:relative;z-index:1}
+    </style>
+    <style id="visibility-boost">
+      /* Labels: روشن‌تر و خواناتر */
+      label{
+        color: var(--text) !important;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: .1px;
+      }
+    
+      /* فیلدها و سلکت‌ها: کنتراست بیشتر و فوکوس مشخص */
+      input[type="text"],
+      input[type="number"],
+      input[type="password"],
+      select{
+        width: 100%;
+        padding: 9px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--panel-bd);
+        background: rgba(255,255,255,.10);
+        color: var(--text);
+        outline: none;
+        font-weight: 600;
+      }
+      input[type="text"]:focus,
+      input[type="number"]:focus,
+      input[type="password"]:focus,
+      select:focus{
+        border-color: var(--accent-2);
+        box-shadow: 0 0 0 2px rgba(96,165,250,.25);
+      }
+    
+      /* خودِ Sensor Catalog */
+      select#catalog{
+        font-weight: 700;
+        letter-spacing: .2px;
+        background: rgba(255,255,255,.14);
+      }
+    </style>
+    <style>
+      /* Sensor Catalog dropdown fix */
+      #catalog {
+        background-color: #1e293b;   /* تیره */
+        color: #f1f5f9;             /* متن روشن */
+        border: 1px solid #334155;
+        border-radius: 6px;
+        padding: 4px 6px;
+        font: 14px system-ui;
+      }
+      #catalog option {
+        background-color: #1e293b;  /* بک‌گراند تیره */
+        color: #f1f5f9;             /* متن روشن */
+      }
+    </style>
+  </head>
+  <body>
+    <button id="btnToggleDrawer" class="floating-open">Panels</button>
+
+    <aside id="drawer" class="drawer">
+      <div class="drawer-header">
+        <div class="drawer-title">Digital Twin Panels</div>
+        <button id="btnCloseDrawer" class="btn ghost" title="Close">✕</button>
+      </div>
+
+      <div class="status-line">
+        <div id="connDot" class="dot" title="MQTT status"></div>
+        <div>
+          <span id="status">disconnected</span> •
+          <small>Topic <code id="topicChip">building/demo/#</code></small>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-tab="scene">Scene</div>
+        <div class="tab" data-tab="props">Properties</div>
+        <div class="tab" data-tab="connection">Connection</div>
+      </div>
+
+      <section id="panel-scene" class="panel active">
+        <div class="row">
+          <label>Sensor Catalog</label>
+          <select id="catalog">
+            <option value="temperature">Temperature</option>
+            <option value="humidity">Humidity</option>
+            <option value="co2">CO₂</option>
+            <option value="light">Light</option>
+            <option value="solar">Solar</option>
+          </select>
+        </div>
+        <div class="row inline">
+          <button id="btnAdd" class="btn primary">Add Sensor</button>
+          <button id="btnDelete" class="btn">Delete</button>
+        </div>
+        <div class="row inline">
+          <button id="btnMove" class="btn">Move</button>
+          <button id="btnDone" class="btn">Confirm Position</button>
+        </div>
+        <div class="row">
+          <button id="btnSave" class="btn">Save Scene JSON</button>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:6px">
+            <input id="fileLoad" type="file" accept=".json"/>
+            <span style="color:var(--muted)">Load Scene JSON</span>
+          </label>
+        </div>
+      </section>
+
+      <section id="panel-props" class="panel">
+        <div class="row">
+          <label>Label</label>
+          <input id="p_label" type="text" placeholder="e.g., Temp – Room 101"/>
+        </div>
+        <div class="row inline">
+          <div>
+            <label>Device ID</label>
+            <input id="p_device" type="text" placeholder="e.g., tmp-101"/>
+          </div>
+          <div>
+            <label>Topic (optional)</label>
+            <input id="p_topic" type="text" placeholder="building/demo/room-1/temperature"/>
+          </div>
+        </div>
+        <div class="row inline">
+          <div>
+            <label>Color</label>
+            <input id="p_color" type="color" value="#3a86ff"/>
+          </div>
+          <div>
+            <label>Scale</label>
+            <input id="p_scale" type="number" step="0.1" value="5.0"/>
+          </div>
+        </div>
+        <div class="row">
+          <button id="btnBind" class="btn primary">Bind / Apply</button>
+        </div>
+      </section>
+
+      <section id="panel-connection" class="panel">
+        <div class="row">
+          <label>Broker URL</label>
+          <input id="brokerUrl" type="text" value="ws://localhost:9001" placeholder="ws://host:port"/>
+        </div>
+        <div class="row">
+          <label>Topic</label>
+          <input id="brokerTopic" type="text" value="building/demo/#"/>
+        </div>
+        <div class="row inline">
+          <div>
+            <label>User (optional)</label>
+            <input id="brokerUser" type="text"/>
+          </div>
+          <div>
+            <label>Password (optional)</label>
+            <input id="brokerPass" type="password"/>
+          </div>
+        </div>
+        <div class="row inline">
+          <button id="btnReconnect" class="btn primary">Connect</button>
+          <button id="btnDisconnect" class="btn">Disconnect</button>
+        </div>
+        <div class="row">
+          <label>Discovered Devices</label>
+          <div id="deviceList" class="list"></div>
+        </div>
+      </section>
+
+      <div class="drawer-footer">
+        <div class="footer-broker">Broker:<code id="ws">ws://localhost:9001</code></div>
+      </div>
+    </aside>
+
+    <div id="app"></div>
+
+    <!-- MQTT for browser (window.mqtt) -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script type="module" src="/src/main.ts"></script>
+
+    <script>
+      const drawer = document.getElementById('drawer');
+      const btnToggle = document.getElementById('btnToggleDrawer');
+      const btnClose = document.getElementById('btnCloseDrawer');
+      const tabs = Array.from(document.querySelectorAll('.tab'));
+      const panels = {
+        scene: document.getElementById('panel-scene'),
+        props: document.getElementById('panel-props'),
+        connection: document.getElementById('panel-connection'),
+      };
+      function setActive(tabKey){
+        tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabKey));
+        Object.entries(panels).forEach(([k, el]) => el.classList.toggle('active', k === tabKey));
+      }
+      tabs.forEach(t => t.addEventListener('click', () => setActive(t.dataset.tab)));
+      btnToggle.addEventListener('click', () => drawer.classList.toggle('collapsed'));
+      btnClose.addEventListener('click', () => drawer.classList.add('collapsed'));
+      if (window.innerWidth < 1100) drawer.classList.add('collapsed');
+
+      const topicInput = document.getElementById('brokerTopic');
+      const topicChip  = document.getElementById('topicChip');
+      topicInput.addEventListener('input', () => topicChip.textContent = topicInput.value || 'building/demo/#');
+
+      const statusEl = document.getElementById('status');
+      const dot = document.getElementById('connDot');
+      const obs = new MutationObserver(() => {
+        const ok = /connected/i.test(statusEl.textContent || '');
+        dot.classList.toggle('ok', ok);
+      });
+      obs.observe(statusEl, { childList:true, characterData:true, subtree:true });
+    </script>
+  </body>
+</html>
