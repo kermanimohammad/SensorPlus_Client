@@ -33,7 +33,11 @@ const grid = BABYLON.MeshBuilder.CreateGround("grid", { width:40, height:28, sub
 grid.isPickable = false;
 const gridMat = new GridMaterial("gridMat", scene); gridMat.majorUnitFrequency=2; gridMat.minorUnitVisibility=0.5; gridMat.gridRatio=1; gridMat.opacity=0.22;
 grid.material = gridMat; grid.position.y = 0.002;
-
+grid.renderingGroupId = 0;        // Grid در گروه پایین‌تر
+gridMat.zOffset = -2;             // کمی عقب‌تر در عمق برای جلوگیری از z-fighting
+ground.renderingGroupId = 0;
+const gStd = ground.material as BABYLON.StandardMaterial;
+if (gStd) gStd.zOffset = -1;
 
 engine.setHardwareScalingLevel(1/Math.max(1, window.devicePixelRatio||1));
 window.addEventListener("resize", () => engine.resize());

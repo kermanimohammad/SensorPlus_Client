@@ -36,20 +36,64 @@ export function resolveHandle(mesh: BABYLON.Node | null){
 
 export function createSensorHandle(s: SensorNode){
   const container = prefabContainers.get(s.type);
+
+  // --- Fallback: sphere
   if(!container){
-    const m = BABYLON.MeshBuilder.CreateSphere(s.id,{diameter:0.7},scene); m.position.set(s.position.x,s.position.y,s.position.z); m.isPickable=true;
-    const mat = new BABYLON.StandardMaterial(s.id+"-mat", scene); const col = color3(s.color ?? palette[s.type]); mat.emissiveColor = col.scale(0.6); m.material = mat;
-    (m as any).metadata = { sensorId: s.id, deviceId: s.deviceId, type: s.type }; m.scaling.setAll((s.scale ?? 1)*GLB_WORLD_SCALE);
-    sensorHandles.set(s.id,m); return m;
+    const m = BABYLON.MeshBuilder.CreateSphere(s.id,{diameter:0.7},scene);
+    m.position.set(s.position.x,s.position.y,s.position.z);
+    m.isPickable=true;
+
+    const mat = new BABYLON.StandardMaterial(s.id+"-mat", scene);
+    const col = color3(s.color ?? palette[s.type]);
+    mat.emissiveColor = col.scale(0.6);
+    m.material = mat;
+
+    // ⬅️ اولویت رندر سنسور
+    m.renderingGroupId = 1;
+
+    (m as any).metadata = { sensorId: s.id, deviceId: s.deviceId, type: s.type };
+    m.scaling.setAll((s.scale ?? 1)*GLB_WORLD_SCALE);
+
+    sensorHandles.set(s.id,m);
+    return m;
   }
+
+  // --- Prefab GLB
   const inst = container.instantiateModelsToScene(name=>`${s.id}-${name}`, false);
+
   const modelRoot = new BABYLON.TransformNode(`${s.id}-modelRoot`, scene);
   for(const r of inst.rootNodes as BABYLON.Node[]) (r as BABYLON.TransformNode).setParent(modelRoot);
-  const bb = modelRoot.getHierarchyBoundingVectors(); const centerX=(bb.min.x+bb.max.x)/2; const centerZ=(bb.min.z+bb.max.z)/2; const bottomY=bb.min.y;
-  modelRoot.position.set(-centerX,-bottomY,-centerZ); modelRoot.rotationQuaternion=null; modelRoot.rotation.set(0,0,0); modelRoot.scaling.setAll(1);
-  const handle = BABYLON.MeshBuilder.CreateBox(`${s.id}-handle`,{size:0.001},scene); handle.visibility=0; handle.isPickable=true; (handle as any).metadata={sensorId:s.id, deviceId:s.deviceId, type:s.type};
-  modelRoot.setParent(handle); handle.position.set(s.position.x,s.position.y,s.position.z); handle.scaling.setAll((s.scale ?? 1)*GLB_WORLD_SCALE);
-  modelRoot.getChildMeshes().forEach(m=>m.isPickable=true); tintHierarchy(handle, s.color ?? palette[s.type]); sensorHandles.set(s.id, handle); return handle;
+
+  const bb = modelRoot.getHierarchyBoundingVectors();
+  const centerX=(bb.min.x+bb.max.x)/2, centerZ=(bb.min.z+bb.max.z)/2, bottomY=bb.min.y;
+  modelRoot.position.set(-centerX,-bottomY,-centerZ);
+  modelRoot.rotationQuaternion=null;
+  modelRoot.rotation.set(0,0,0);
+  modelRoot.scaling.setAll(1);
+
+  const handle = BABYLON.MeshBuilder.CreateBox(`${s.id}-handle`,{size:0.001},scene);
+  handle.visibility=0;
+  handle.isPickable=true;
+  (handle as any).metadata={sensorId:s.id, deviceId:s.deviceId, type:s.type};
+
+  modelRoot.setParent(handle);
+  handle.position.set(s.position.x,s.position.y,s.position.z);
+  handle.scaling.setAll((s.scale ?? 1)*GLB_WORLD_SCALE);
+
+  // همهٔ مش‌های فرزند قابل پیک شوند
+  modelRoot.getChildMeshes().forEach(m => {
+    m.isPickable = true;
+    // ⬅️ اولویت رندر سنسور
+    m.renderingGroupId = 1;
+  });
+
+  // خود handle هم در همان گروه باشد (برای اطمینان)
+  handle.renderingGroupId = 1;
+
+  tintHierarchy(handle, s.color ?? palette[s.type]);
+
+  sensorHandles.set(s.id, handle);
+  return handle;
 }
 
 export function applyReadingToSensor(handle: BABYLON.AbstractMesh, reading: Reading){
@@ -74,4 +118,9 @@ export function renderPopupContent(d?: Reading){ if(!popupDevId) return; const d
  else { pL1.textContent=`${(data as any).kind}: ${(data as any).value.toFixed(2)} ${(data as any).unit}`; pL2.textContent=(data as any).roomId?`room: ${(data as any).roomId}`:""; } pTs.textContent=`updated: ${new Date((data as any).ts).toLocaleTimeString()}`; } else { pL1.textContent="no data yet"; pL2.textContent=""; pTs.textContent=""; } }
 export function showPopupFor(deviceId:string, handle:BABYLON.AbstractMesh){ popupDevId=deviceId; popupTarget=handle; renderPopupContent(); popup.style.display="block"; updatePopupPosition(); }
 export function updatePopupPosition(){ if(!popupTarget) return; const pos = popupTarget.getAbsolutePosition(); const p = BABYLON.Vector3.Project(pos, BABYLON.Matrix.Identity(), scene.getTransformMatrix(), camera.viewport.toGlobal(scene.getEngine().getRenderWidth(), scene.getEngine().getRenderHeight())); popup.style.left=Math.round(p.x+16)+"px"; popup.style.top=Math.round(p.y-16)+"px"; }
+export function hidePopup(){
+  popup.style.display = "none";
+  popupTarget = null;
+  popupDevId = null;
+}
 startRenderLoop(updatePopupPosition);

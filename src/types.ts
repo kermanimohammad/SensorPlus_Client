@@ -45,5 +45,29 @@ light: "#ffd6a5",
 solar: "#ffd166",
 };
 
+// اضافه یا به‌روز کن:
+
+export type ProjectEnvironment = {
+    id: string; // env-xxxxx
+    name: string;
+    dataB64: string;
+    transform: { position: {x:number;y:number;z:number}; rotationYDeg: number; scale: number };
+  };
+  
+  export type ProjectFile = {
+    kind: "digital-twin-project";
+    version: 2; // ← نسخه جدید
+    connection: { url: string; topic: string; user?: string; pass?: string };
+    sensors: SensorNode[];
+    // نسخه جدید:
+    environments?: ProjectEnvironment[];
+    // سازگاری با پروژه‌های قدیمی (v1):
+    environment?: {
+      name: string;
+      dataB64: string;
+      transform: { position: {x:number;y:number;z:number}; rotationYDeg: number; scale: number };
+    };
+  };
+  
 
 export const genId = () => "s-" + Math.random().toString(36).slice(2, 8);

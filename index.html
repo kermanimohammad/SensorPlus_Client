@@ -4,139 +4,42 @@
     <meta charset="UTF-8" />
     <title>Digital Twin (Babylon + MQTT)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>
-      :root{
-        --panel-bg: rgba(12,16,28,0.78);
-        --panel-bd: rgba(255,255,255,0.12);
-        --chip-bg: rgba(0,0,0,0.55);
-        --accent: #6ee7b7;
-        --accent-2: #60a5fa;
-        --text: #e5e7eb;
-        --muted: #9ca3af;
-        --hover: rgba(255,255,255,0.08);
-      }
-      *{box-sizing:border-box}
-      html,body,#app,#renderCanvas{height:100%;width:100%;margin:0;padding:0}
-      body{overflow:hidden;background:#0a0e1a;color:var(--text);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial}
-
-      /* ===== Drawer (right panel) ===== */
-      .drawer{
-        position:fixed;right:12px;top:12px;bottom:12px;z-index:25;
-        width:360px;max-width:calc(100% - 24px);
-        display:grid;grid-template-rows:auto auto auto 1fr auto;
-        background:var(--panel-bg);border:1px solid var(--panel-bd);
-        border-radius:14px;backdrop-filter:blur(10px);
-        transform:translateX(0);transition:transform .25s ease,opacity .2s ease;
-      }
-      .drawer.collapsed{transform:translateX(calc(100% + 12px));opacity:.98;pointer-events:none}
-
-      .drawer-header{
-        display:flex;align-items:center;justify-content:space-between;
-        padding:8px 10px;border-bottom:1px solid var(--panel-bd)
-      }
-      .drawer-title{font-weight:600;letter-spacing:.2px}
-      .status-line{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);padding:6px 10px}
-      .dot{width:8px;height:8px;border-radius:50%;background:#ef4444;box-shadow:0 0 12px rgba(239,68,68,.7)}
-      .dot.ok{background:#10b981;box-shadow:0 0 12px rgba(16,185,129,.7)}
-      code{color:var(--accent-2);background:rgba(255,255,255,.06);padding:2px 6px;border-radius:6px}
-
-      /* compact tab bar */
-      .tabs{display:flex;gap:6px;padding:6px 8px;border-bottom:1px solid var(--panel-bd)}
-      .tab{padding:6px 8px;border-radius:10px;cursor:pointer;color:var(--muted);user-select:none}
-      .tab.active{background:var(--hover);color:var(--text)}
-
-      /* ===== Panels (no big gap) ===== */
-      .panel{display:none;padding:6px 10px 10px;overflow:auto}
-      .panel.active{display:block}
-
-      .row{display:grid;grid-template-columns:1fr;gap:6px;margin:6px 0 0}
-      .row.inline{grid-template-columns:1fr 1fr;gap:8px}
-      label{color:var(--muted);font-size:12px}
-      input[type="text"],input[type="number"],input[type="password"],select{
-        width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--panel-bd);
-        background:rgba(255,255,255,.05);color:var(--text);outline:none
-      }
-      input[type="color"]{width:100%;height:34px;padding:3px;border-radius:10px;border:1px solid var(--panel-bd);background:rgba(255,255,255,.05)}
-      .btn{padding:8px 10px;border-radius:10px;border:1px solid var(--panel-bd);background:rgba(255,255,255,.05);color:var(--text);cursor:pointer}
-      .btn:hover{background:var(--hover)}
-      .btn.primary{border-color:transparent;background:linear-gradient(135deg,#6ee7b7 0%,#60a5fa 100%);color:#0b1020;font-weight:600}
-      .btn.ghost{background:transparent}
-
-      .drawer-footer{padding:8px 10px;border-top:1px solid var(--panel-bd);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted)}
-      .footer-broker code{margin-left:6px}
-
-      .floating-open{
-        position:fixed;left:12px;top:12px;z-index:30;
-        background:rgba(0,0,0,0.55);border:1px solid var(--panel-bd);
-        padding:6px 10px;border-radius:999px;color:var(--text);cursor:pointer
-      }
-
-      .list{border:1px solid var(--panel-bd);background:rgba(255,255,255,.04);border-radius:10px;padding:6px;min-height:40px;max-height:160px;overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
-      .list .chip{display:inline-block;margin:4px 6px 0 0;padding:4px 8px;border-radius:999px;background:rgba(0,0,0,.35);border:1px solid var(--panel-bd);color:var(--text)}
-
-      #app{position:relative;z-index:1}
-    </style>
-    <style id="visibility-boost">
-      /* Labels: روشن‌تر و خواناتر */
-      label{
-        color: var(--text) !important;
-        font-size: 12px;
-        font-weight: 600;
-        letter-spacing: .1px;
-      }
-    
-      /* فیلدها و سلکت‌ها: کنتراست بیشتر و فوکوس مشخص */
-      input[type="text"],
-      input[type="number"],
-      input[type="password"],
-      select{
-        width: 100%;
-        padding: 9px 12px;
-        border-radius: 10px;
-        border: 1px solid var(--panel-bd);
-        background: rgba(255,255,255,.10);
-        color: var(--text);
-        outline: none;
-        font-weight: 600;
-      }
-      input[type="text"]:focus,
-      input[type="number"]:focus,
-      input[type="password"]:focus,
-      select:focus{
-        border-color: var(--accent-2);
-        box-shadow: 0 0 0 2px rgba(96,165,250,.25);
-      }
-    
-      /* خودِ Sensor Catalog */
-      select#catalog{
-        font-weight: 700;
-        letter-spacing: .2px;
-        background: rgba(255,255,255,.14);
-      }
-    </style>
-    <style>
-      /* Sensor Catalog dropdown fix */
-      #catalog {
-        background-color: #1e293b;   /* تیره */
-        color: #f1f5f9;             /* متن روشن */
-        border: 1px solid #334155;
-        border-radius: 6px;
-        padding: 4px 6px;
-        font: 14px system-ui;
-      }
-      #catalog option {
-        background-color: #1e293b;  /* بک‌گراند تیره */
-        color: #f1f5f9;             /* متن روشن */
-      }
-    </style>
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <button id="btnToggleDrawer" class="floating-open">Panels</button>
+    
+      <!-- Tools Dock (horizontal top bar) -->
+      <div id="toolsDock" class="tools-dock horizontal" aria-label="Tools">
+        <button id="btnToolSelect" class="icon-btn" title="Select">
+          <img src="/icons/select.svg" alt="" class="icon" />
+        </button>
+        <button id="btnMove" class="icon-btn primary" title="Move">
+          <img src="/icons/move.svg" alt="" class="icon" />
+        </button>
+        <button id="btnToolRotate" class="icon-btn" title="Rotate">
+          <img src="/icons/rotate.svg" alt="" class="icon" />
+        </button>
+        <button id="btnToolScale" class="icon-btn" title="Scale">
+          <img src="/icons/scale.svg" alt="" class="icon" />
+        </button>
+        <button id="btnDelete" class="icon-btn danger" title="Delete">
+          <img src="/icons/delete.svg" alt="" class="icon" />
+        </button>
+      </div>
+    
 
+    <!-- Drawer toggle -->
+    <button id="btnToggleDrawer" class="floating-open" title="Panels">
+      <img src="/icons/panels.svg" alt="" class="icon" />
+    </button>
+
+    <!-- Drawer -->
     <aside id="drawer" class="drawer">
       <div class="drawer-header">
         <div class="drawer-title">Digital Twin Panels</div>
-        <button id="btnCloseDrawer" class="btn ghost" title="Close">✕</button>
+        <button id="btnCloseDrawer" class="btn ghost" title="Close">
+          <img src="/icons/close.svg" alt="" class="icon" />
+        </button>
       </div>
 
       <div class="status-line">
@@ -153,34 +56,107 @@
         <div class="tab" data-tab="connection">Connection</div>
       </div>
 
+      <!-- ===================== SCENE ===================== -->
       <section id="panel-scene" class="panel active">
-        <div class="row">
-          <label>Sensor Catalog</label>
-          <select id="catalog">
-            <option value="temperature">Temperature</option>
-            <option value="humidity">Humidity</option>
-            <option value="co2">CO₂</option>
-            <option value="light">Light</option>
-            <option value="solar">Solar</option>
-          </select>
+
+        <!-- 1) Environment -->
+        <div class="group">
+          <div class="group-head">
+            <div class="head-icon">
+              <img src="/icons/env.svg" alt="Environment Icon" />
+            </div>
+            <div class="head-title">
+              <div class="t1">Environment</div>
+              <div class="t2">GLB File</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <label>Environment (GLB)</label>
+            <label class="file-uploader">
+              <input id="envFile" type="file" accept=".glb" />
+              <span class="file-chip" data-default="Choose File">Choose File</span>
+              <span class="file-name">No file chosen</span>
+            </label>
+          </div>
         </div>
-        <div class="row inline">
-          <button id="btnAdd" class="btn primary">Add Sensor</button>
-          <button id="btnDelete" class="btn">Delete</button>
+
+        <!-- 2) Add Sensor -->
+        <div class="group">
+          <div class="group-head">
+            <div class="head-icon">
+              <img src="/icons/add.svg" alt="" />
+            </div>
+            <div class="head-title">
+              <div class="t1">Sensors</div>
+              <div class="t2">Catalog</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <label>Sensor Catalog</label>
+            <div class="select-line">
+              <select id="catalog">
+                <option value="temperature">Temperature</option>
+                <option value="humidity">Humidity</option>
+                <option value="co2">CO₂</option>
+                <option value="light">Light</option>
+                <option value="solar">Solar</option>
+              </select>
+              <button id="btnAdd" class="btn solid">
+                <img src="/icons/add.svg" alt="" class="icon" /> Add Sensor
+              </button>
+            </div>
+          </div>
         </div>
-        <div class="row inline">
-          <button id="btnMove" class="btn">Move</button>
-          <button id="btnDone" class="btn">Confirm Position</button>
-        </div>
-        <div class="row">
-          <button id="btnSave" class="btn">Save Scene JSON</button>
-          <label style="display:flex;align-items:center;gap:8px;margin-top:6px">
-            <input id="fileLoad" type="file" accept=".json"/>
-            <span style="color:var(--muted)">Load Scene JSON</span>
-          </label>
+
+        <!-- 3) Project -->
+        <div class="group">
+          <div class="group-head">
+            <div class="head-icon">
+              <img src="/icons/save.svg" alt="" />
+            </div>
+            <div class="head-title">
+              <div class="t1">Project</div>
+              <div class="t2">Save / Load</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <button id="btnSaveProject" class="btn primary full">
+              <img src="/icons/save.svg" alt="" class="icon" /> Save Project
+            </button>
+          </div>
+
+          <div class="row">
+            <label>Load Project</label>
+            <label class="file-uploader">
+              <input id="fileLoadProject" type="file" accept=".dtproj,.json" />
+              <span class="file-chip" data-default="Choose File">Choose File</span>
+              <span class="file-name">No file chosen</span>
+            </label>
+          </div>
+
+          <div class="row partition"></div>
+
+          <div class="row">
+            <button id="btnSave" class="btn full">
+              <img src="/icons/save.svg" alt="" class="icon" /> Save Scene JSON
+            </button>
+          </div>
+
+          <div class="row">
+            <label>Load Scene JSON</label>
+            <label class="file-uploader">
+              <input id="fileLoad" type="file" accept=".json" />
+              <span class="file-chip" data-default="Choose File">Choose File</span>
+              <span class="file-name">No file chosen</span>
+            </label>
+          </div>
         </div>
       </section>
 
+      <!-- =================== PROPS =================== -->
       <section id="panel-props" class="panel">
         <div class="row">
           <label>Label</label>
@@ -207,14 +183,17 @@
           </div>
         </div>
         <div class="row">
-          <button id="btnBind" class="btn primary">Bind / Apply</button>
+          <button id="btnBind" class="btn primary full">
+            <img src="/icons/bind.svg" alt="" class="icon" /> Bind / Apply
+          </button>
         </div>
       </section>
 
+      <!-- ================= CONNECTION ================ -->
       <section id="panel-connection" class="panel">
         <div class="row">
           <label>Broker URL</label>
-          <input id="brokerUrl" type="text" value="ws://localhost:9001" placeholder="ws://host:port"/>
+          <input id="brokerUrl" type="text" value="ws://localhost:9001" placeholder="ws://host:port or wss://host:port/mqtt"/>
         </div>
         <div class="row">
           <label>Topic</label>
@@ -231,8 +210,12 @@
           </div>
         </div>
         <div class="row inline">
-          <button id="btnReconnect" class="btn primary">Connect</button>
-          <button id="btnDisconnect" class="btn">Disconnect</button>
+          <button id="btnReconnect" class="btn primary">
+            <img src="/icons/connect.svg" alt="" class="icon" /> Connect
+          </button>
+          <button id="btnDisconnect" class="btn">
+            <img src="/icons/disconnect.svg" alt="" class="icon" /> Disconnect
+          </button>
         </div>
         <div class="row">
           <label>Discovered Devices</label>
@@ -245,12 +228,15 @@
       </div>
     </aside>
 
+    <!-- 3D host -->
     <div id="app"></div>
 
-    <!-- MQTT for browser (window.mqtt) -->
+    <!-- MQTT -->
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <!-- App entry -->
     <script type="module" src="/src/main.ts"></script>
 
+    <!-- Drawer/Tabs/Status + فایل‌نام آپلودر -->
     <script>
       const drawer = document.getElementById('drawer');
       const btnToggle = document.getElementById('btnToggleDrawer');
@@ -281,6 +267,18 @@
         dot.classList.toggle('ok', ok);
       });
       obs.observe(statusEl, { childList:true, characterData:true, subtree:true });
+
+      // نمایش نام فایل در آپلودرهای گرافیکی
+      document.querySelectorAll('.file-uploader input[type="file"]').forEach(inp=>{
+        inp.addEventListener('change', ()=>{
+          const wrapper = inp.closest('.file-uploader');
+          const chip = wrapper.querySelector('.file-chip');
+          const name = wrapper.querySelector('.file-name');
+          const file = inp.files && inp.files[0];
+          name.textContent = file ? file.name : 'No file chosen';
+          chip.textContent = chip.getAttribute('data-default') || 'Choose File';
+        });
+      });
     </script>
   </body>
 </html>
