@@ -201,5 +201,40 @@ input[type="color"]{
   backdrop-filter: blur(8px);
   pointer-events: auto;
 }
+/* Icon buttons (Tools) — unified look + active state */
+.icon-btn{
+  width:36px;height:36px;border-radius:10px;
+  border:1px solid #cbd5e1;               /* مرز ملایم */
+  background:#e2e8f0;                      /* همه هم‌رنگ */
+  color:#111;
+  display:inline-flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  transition:background .15s ease, transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.icon-btn .icon{ width:18px; height:18px; }
+
+.icon-btn:hover{
+  background:#f1f5f9;
+  transform: translateY(-1px);
+}
+
+/* حالت فعال: رنگ متمایز + حلقهٔ ظریف */
+.icon-btn[aria-pressed="true"]{
+  background: linear-gradient(135deg,#dbeafe 0%, #bfdbfe 100%); /* آبی روشن */
+  border-color:#93c5fd;
+  box-shadow: 0 0 0 2px rgba(147,197,253,.35) inset;
+}
+
+/* حالت فوکوس کیبورد (دسترسی بهتر) */
+.icon-btn:focus-visible{
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(147,197,253,.45);
+}
+
+/* حالت فعالِ همزمان با hover کمی برجسته‌تر شود (اختیاری) */
+.icon-btn[aria-pressed="true"]:hover{
+  background: linear-gradient(135deg,#cae3ff 0%, #b5d7ff 100%);
+}
+
 /* App host */
 #app{position:relative;z-index:1}

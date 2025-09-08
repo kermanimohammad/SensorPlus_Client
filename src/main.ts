@@ -1,9 +1,9 @@
-// src/main.ts — updated to use getActiveEnvRoot (multi-environment safe)
+// src/main.ts — full updated (double-click zoom + multi-env + tools dock)
 import * as BABYLON from "babylonjs";
 import "babylonjs-loaders";
-
+import { removeActiveEnvironment } from "./env";
 // scene
-import { scene } from "./core/scene";
+import { scene, camera } from "./core/scene";
 
 // types
 import type { SensorNode, SensorType } from "./types";
@@ -75,7 +75,7 @@ const btnSaveProject   = document.getElementById("btnSaveProject") as HTMLButton
 const fileLoadProject  = document.getElementById("fileLoadProject") as HTMLInputElement;
 
 /* ---------------------------------------------
-   Selected id (consistent with your previous code)
+   Selected id (keep global compatibility)
 ---------------------------------------------- */
 (window as any).selectedId = (window as any).selectedId ?? null;
 
@@ -232,17 +232,24 @@ btnSelect?.addEventListener("click", () => enableSelect());
 btnMove  ?.addEventListener("click", () => enableMove());
 btnRotate?.addEventListener("click", () => enableRotate());
 btnScale ?.addEventListener("click", () => enableScale());
-btnDel   ?.addEventListener("click", () => {
+btnDel?.addEventListener("click", () => {
   const id = (window as any).selectedId as string | null;
-  if (!id) return;
-  const h = sensorHandles.get(id)!;
-  try { h.getChildMeshes().forEach(c => c.dispose()); } catch {}
-  try { h.dispose(); } catch {}
-  sensorHandles.delete(id);
-  sensors.delete(id);
-  (window as any).selectedId = null;
-  hidePopup();
-  enableSelect();
+
+  if (id) {
+    // ---- حذف سنسور
+    const h = sensorHandles.get(id)!;
+    try { h.getChildMeshes().forEach(c => c.dispose()); } catch {}
+    try { h.dispose(); } catch {}
+    sensorHandles.delete(id);
+    sensors.delete(id);
+    (window as any).selectedId = null;
+    hidePopup();
+    enableSelect();
+  } else {
+    // ---- اگر سنسور انتخاب نشده، محیط فعال را حذف کن
+    removeActiveEnvironment();
+    enableSelect();
+  }
 });
 
 /* ---------------------------------------------
@@ -276,7 +283,44 @@ fileLoadProject?.addEventListener("change", async () => {
 });
 
 /* ---------------------------------------------
-   Picking: select sensor or activate environment
+   Camera framing (double-click)
+---------------------------------------------- */
+function frameNode(node: BABYLON.Node, pad = 1.6, maxRadius = 120) {
+  const bb = (node as any).getHierarchyBoundingVectors?.();
+  if (!bb) return;
+
+  const min: BABYLON.Vector3 = bb.min, max: BABYLON.Vector3 = bb.max;
+  const center = BABYLON.Vector3.Center(min, max);
+  const diag   = max.subtract(min);
+  const radius = Math.max(diag.length() * 0.5 * pad, 3);
+
+  const toTarget = center;
+  const toRadius = Math.min(radius, maxRadius);
+
+  const aTarget = new BABYLON.Animation(
+    "camTargetAnim", "target", 60,
+    BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
+    BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+  );
+  aTarget.setKeys([{ frame: 0, value: camera.target.clone() }, { frame: 45, value: toTarget }]);
+
+  const aRadius = new BABYLON.Animation(
+    "camRadiusAnim", "radius", 60,
+    BABYLON.Animation.ANIMATIONTYPE_FLOAT,
+    BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+  );
+  aRadius.setKeys([{ frame: 0, value: camera.radius }, { frame: 45, value: toRadius }]);
+
+  const easing = new BABYLON.CubicEase(); easing.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEINOUT);
+  aTarget.setEasingFunction(easing); aRadius.setEasingFunction(easing);
+
+  camera.animations = [];
+  camera.animations.push(aTarget, aRadius);
+  scene.beginAnimation(camera, 0, 45, false);
+}
+
+/* ---------------------------------------------
+   Picking: click select + double-click frame
 ---------------------------------------------- */
 scene.onPointerObservable.add((pi) => {
   if (pi.type !== BABYLON.PointerEventTypes.POINTERPICK) return;
@@ -310,6 +354,25 @@ scene.onPointerObservable.add((pi) => {
     else enableSelect();
   } else {
     enableSelect();
+  }
+});
+
+// Double-click → frame/zoom on target
+scene.onPointerObservable.add((pi) => {
+  if (pi.type !== BABYLON.PointerEventTypes.POINTERDOUBLETAP) return;
+  const pick = pi.pickInfo;
+  if (!pick?.hit || !pick.pickedMesh) return;
+
+  // Sensor?
+  const r = resolveHandle(pick.pickedMesh);
+  if (r) { frameNode(r.handle); return; }
+
+  // Environment?
+  const envId = resolveEnvFromMesh(pick.pickedMesh);
+  if (envId) {
+    setActiveEnvironment(envId);
+    const envRoot = getActiveEnvRoot();
+    if (envRoot) frameNode(envRoot);
   }
 });
 
