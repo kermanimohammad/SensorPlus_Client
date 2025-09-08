@@ -1,7 +1,7 @@
-// src/main.ts — full updated (double-click zoom + multi-env + tools dock)
+// src/main.ts — save to folder (FS Access) + existing features
 import * as BABYLON from "babylonjs";
 import "babylonjs-loaders";
-import { removeActiveEnvironment } from "./env";
+
 // scene
 import { scene, camera } from "./core/scene";
 
@@ -27,6 +27,7 @@ import {
   getActiveEnvRoot,
   setActiveEnvironment,
   resolveEnvFromMesh,
+  removeActiveEnvironment,
 } from "./env";
 
 // mqtt
@@ -36,8 +37,9 @@ import { wireMqttButtons } from "./mqtt";
 import {
   saveSceneSensors,
   loadSceneSensorsFromFile,
-  saveProject,
+  // saveProject,                // ← دیگر لازم نیست روی دکمه‌ی UI
   loadProjectFromFile,
+  saveProjectToFolder,          // ← استفاده از فولدر
 } from "./project";
 
 /* ---------------------------------------------
@@ -75,7 +77,7 @@ const btnSaveProject   = document.getElementById("btnSaveProject") as HTMLButton
 const fileLoadProject  = document.getElementById("fileLoadProject") as HTMLInputElement;
 
 /* ---------------------------------------------
-   Selected id (keep global compatibility)
+   Selected id
 ---------------------------------------------- */
 (window as any).selectedId = (window as any).selectedId ?? null;
 
@@ -87,7 +89,9 @@ gizmos.usePointerToAttachGizmos = false;
 gizmos.positionGizmoEnabled = false;
 gizmos.rotationGizmoEnabled = false;
 gizmos.scaleGizmoEnabled    = false;
-
+if (gizmos.gizmos.rotationGizmo) {
+  gizmos.gizmos.rotationGizmo.updateGizmoRotationToMatchAttachedMesh = false;
+}
 function setToolPressed(el?: HTMLButtonElement | null) {
   [btnSelect, btnMove, btnRotate, btnScale].forEach(b => {
     if (!b) return;
@@ -104,7 +108,7 @@ function enableSelect() {
   setToolPressed(btnSelect);
 }
 
-/** Try to attach gizmo to selected sensor; otherwise to active environment root */
+/** attach gizmo to selected sensor or active environment */
 function attachToCurrentSelection(): boolean {
   const id = (window as any).selectedId as string | null;
   if (id) {
@@ -129,7 +133,6 @@ function enableMove() {
   gizmos.scaleGizmoEnabled    = false;
   setToolPressed(btnMove);
 }
-
 function enableRotate() {
   if (!attachToCurrentSelection()) return;
   gizmos.positionGizmoEnabled = false;
@@ -137,7 +140,6 @@ function enableRotate() {
   gizmos.scaleGizmoEnabled    = false;
   setToolPressed(btnRotate);
 }
-
 function enableScale() {
   if (!attachToCurrentSelection()) return;
   gizmos.positionGizmoEnabled = false;
@@ -157,19 +159,17 @@ function persistPositionIfSensor() {
   if (!h || !s) return;
   s.position = { x: h.position.x, y: h.position.y, z: h.position.z };
 }
-
 function persistScaleIfSensor() {
   const id = (window as any).selectedId as string | null;
   if (!id) return;
   const h = sensorHandles.get(id);
   const s = sensors.get(id);
   if (!h || !s) return;
-  const world = h.scaling.x; // isotropic
+  const world = h.scaling.x;
   const newBase = world / GLB_WORLD_SCALE;
   s.scale = newBase > 0.0001 ? newBase : 0.0001;
   h.scaling.setAll(s.scale * GLB_WORLD_SCALE);
 }
-
 gizmos.gizmos.positionGizmo?.onDragEndObservable.add(persistPositionIfSensor);
 gizmos.gizmos.scaleGizmo?.onDragEndObservable.add(persistScaleIfSensor);
 
@@ -193,7 +193,6 @@ btnAdd.addEventListener("click", async () => {
   (window as any).selectedId = id;
   fillPropertyPanel(s);
 
-  // re-attach tool to new selection if any tool is active
   if (btnMove?.getAttribute("aria-pressed") === "true") enableMove();
   else if (btnRotate?.getAttribute("aria-pressed") === "true") enableRotate();
   else if (btnScale?.getAttribute("aria-pressed") === "true") enableScale();
@@ -216,7 +215,6 @@ btnBind.addEventListener("click", () => {
 });
 
 btnSave.addEventListener("click", saveSceneSensors);
-
 fileLoad.addEventListener("change", async () => {
   const f = fileLoad.files?.[0]; if (!f) return;
   await loadSceneSensorsFromFile(f);
@@ -226,17 +224,17 @@ fileLoad.addEventListener("change", async () => {
 });
 
 /* ---------------------------------------------
-   Tools dock buttons
+   Tools dock actions
 ---------------------------------------------- */
 btnSelect?.addEventListener("click", () => enableSelect());
 btnMove  ?.addEventListener("click", () => enableMove());
 btnRotate?.addEventListener("click", () => enableRotate());
 btnScale ?.addEventListener("click", () => enableScale());
-btnDel?.addEventListener("click", () => {
+btnDel   ?.addEventListener("click", () => {
   const id = (window as any).selectedId as string | null;
 
   if (id) {
-    // ---- حذف سنسور
+    // delete sensor
     const h = sensorHandles.get(id)!;
     try { h.getChildMeshes().forEach(c => c.dispose()); } catch {}
     try { h.dispose(); } catch {}
@@ -246,7 +244,7 @@ btnDel?.addEventListener("click", () => {
     hidePopup();
     enableSelect();
   } else {
-    // ---- اگر سنسور انتخاب نشده، محیط فعال را حذف کن
+    // delete active environment
     removeActiveEnvironment();
     enableSelect();
   }
@@ -261,7 +259,6 @@ envFileInput?.addEventListener("change", async () => {
   const buf = await f.arrayBuffer();
   await addEnvironmentFromGLBArrayBuffer(buf, f.name);
 
-  // if no sensor selected, attach tools to active env
   if (!(window as any).selectedId) {
     if (btnMove?.getAttribute("aria-pressed") === "true") enableMove();
     else if (btnRotate?.getAttribute("aria-pressed") === "true") enableRotate();
@@ -272,11 +269,18 @@ envFileInput?.addEventListener("change", async () => {
 /* ---------------------------------------------
    Project save/load
 ---------------------------------------------- */
-btnSaveProject?.addEventListener("click", saveProject);
+btnSaveProject?.addEventListener("click", async () => {
+  try {
+    await saveProjectToFolder(); // ← انتخاب فولدر + ذخیره‌ی GLBها + project.json
+  } catch (err: any) {
+    console.error("[Save] Failed:", err?.message || err);
+    alert("Save failed: " + (err?.message || err));
+  }
+});
+
 fileLoadProject?.addEventListener("change", async () => {
   const f = fileLoadProject.files?.[0]; if (!f) return;
   await loadProjectFromFile(f);
-  // after load, default to tool state
   if (btnMove?.getAttribute("aria-pressed") === "true") enableMove();
   else if (btnRotate?.getAttribute("aria-pressed") === "true") enableRotate();
   else if (btnScale?.getAttribute("aria-pressed") === "true") enableScale();
@@ -288,7 +292,6 @@ fileLoadProject?.addEventListener("change", async () => {
 function frameNode(node: BABYLON.Node, pad = 1.6, maxRadius = 120) {
   const bb = (node as any).getHierarchyBoundingVectors?.();
   if (!bb) return;
-
   const min: BABYLON.Vector3 = bb.min, max: BABYLON.Vector3 = bb.max;
   const center = BABYLON.Vector3.Center(min, max);
   const diag   = max.subtract(min);
@@ -297,18 +300,10 @@ function frameNode(node: BABYLON.Node, pad = 1.6, maxRadius = 120) {
   const toTarget = center;
   const toRadius = Math.min(radius, maxRadius);
 
-  const aTarget = new BABYLON.Animation(
-    "camTargetAnim", "target", 60,
-    BABYLON.Animation.ANIMATIONTYPE_VECTOR3,
-    BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
-  );
+  const aTarget = new BABYLON.Animation("camTargetAnim","target",60,BABYLON.Animation.ANIMATIONTYPE_VECTOR3,BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
   aTarget.setKeys([{ frame: 0, value: camera.target.clone() }, { frame: 45, value: toTarget }]);
 
-  const aRadius = new BABYLON.Animation(
-    "camRadiusAnim", "radius", 60,
-    BABYLON.Animation.ANIMATIONTYPE_FLOAT,
-    BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
-  );
+  const aRadius = new BABYLON.Animation("camRadiusAnim","radius",60,BABYLON.Animation.ANIMATIONTYPE_FLOAT,BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT);
   aRadius.setKeys([{ frame: 0, value: camera.radius }, { frame: 45, value: toRadius }]);
 
   const easing = new BABYLON.CubicEase(); easing.setEasingMode(BABYLON.EasingFunction.EASINGMODE_EASEINOUT);
@@ -329,7 +324,6 @@ scene.onPointerObservable.add((pi) => {
 
   const r = resolveHandle(pick.pickedMesh);
   if (r) {
-    // sensor selected
     (window as any).selectedId = r.sensorId;
     const s = sensors.get(r.sensorId)!;
     fillPropertyPanel(s);
@@ -341,7 +335,6 @@ scene.onPointerObservable.add((pi) => {
     return;
   }
 
-  // not a sensor → maybe an environment mesh
   const envId = resolveEnvFromMesh(pick.pickedMesh);
   (window as any).selectedId = null;
   hidePopup();
@@ -357,17 +350,14 @@ scene.onPointerObservable.add((pi) => {
   }
 });
 
-// Double-click → frame/zoom on target
 scene.onPointerObservable.add((pi) => {
   if (pi.type !== BABYLON.PointerEventTypes.POINTERDOUBLETAP) return;
   const pick = pi.pickInfo;
   if (!pick?.hit || !pick.pickedMesh) return;
 
-  // Sensor?
   const r = resolveHandle(pick.pickedMesh);
   if (r) { frameNode(r.handle); return; }
 
-  // Environment?
   const envId = resolveEnvFromMesh(pick.pickedMesh);
   if (envId) {
     setActiveEnvironment(envId);
