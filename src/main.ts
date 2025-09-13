@@ -1,13 +1,14 @@
 // src/main.ts — save to folder (FS Access) + existing features
-import * as BABYLON from "babylonjs";
-import "babylonjs-loaders";
+import * as BABYLON from "@babylonjs/core";
+import "@babylonjs/loaders";
+import { loadProjectFromDtsp } from "./project";
 
 // scene
 import { scene, camera } from "./core/scene";
 
 // types
 import type { SensorNode, SensorType } from "./types";
-import { GLB_WORLD_SCALE, genId, palette } from "./types";
+import { GLB_WORLD_SCALE, genId } from "./types";
 
 // sensors
 import {
@@ -16,9 +17,10 @@ import {
   sensorHandles,
   createSensorHandle,
   resolveHandle,
-  tintHierarchy,
+  // tintHierarchy, // Removed to preserve original GLB materials
   showPopupFor,
   hidePopup,
+  updateSensorList,
 } from "./sensors";
 
 // env (multi-environment API)
@@ -28,6 +30,7 @@ import {
   setActiveEnvironment,
   resolveEnvFromMesh,
   removeActiveEnvironment,
+  updateEnvironmentList,
 } from "./env";
 
 // mqtt
@@ -35,8 +38,8 @@ import { wireMqttButtons } from "./mqtt";
 
 // project
 import {
-  saveSceneSensors,
-  loadSceneSensorsFromFile,
+  // saveSceneSensors,
+  // loadSceneSensorsFromFile,
   // saveProject,                // ← دیگر لازم نیست روی دکمه‌ی UI
   loadProjectFromFile,
   saveProjectToFolder,          // ← استفاده از فولدر
@@ -49,8 +52,8 @@ function fillPropertyPanel(s: SensorNode) {
   (document.getElementById("p_label") as HTMLInputElement).value = s.label;
   (document.getElementById("p_device") as HTMLInputElement).value = s.deviceId;
   (document.getElementById("p_topic") as HTMLInputElement).value = s.topic ?? "";
-  (document.getElementById("p_color") as HTMLInputElement).value = s.color ?? palette[s.type];
-  (document.getElementById("p_scale") as HTMLInputElement).value = String(s.scale ?? 5.0);
+  (document.getElementById("p_color") as HTMLInputElement).value = s.color ?? "";
+  (document.getElementById("p_scale") as HTMLInputElement).value = String(s.scale ?? 1.0);
 }
 
 /* ---------------------------------------------
@@ -58,8 +61,7 @@ function fillPropertyPanel(s: SensorNode) {
 ---------------------------------------------- */
 const btnAdd   = document.getElementById("btnAdd")! as HTMLButtonElement;
 const btnBind  = document.getElementById("btnBind")! as HTMLButtonElement;
-const btnSave  = document.getElementById("btnSave")! as HTMLButtonElement;
-const fileLoad = document.getElementById("fileLoad") as HTMLInputElement;
+// removed scene JSON save/load controls
 const catalog  = document.getElementById("catalog") as HTMLSelectElement;
 
 // tools dock
@@ -74,7 +76,7 @@ const envFileInput     = document.getElementById("envFile") as HTMLInputElement;
 
 // project panel
 const btnSaveProject   = document.getElementById("btnSaveProject") as HTMLButtonElement;
-const fileLoadProject  = document.getElementById("fileLoadProject") as HTMLInputElement;
+const fileLoadProject = document.getElementById("fileLoadProject") as HTMLInputElement | null;
 
 /* ---------------------------------------------
    Selected id
@@ -89,6 +91,9 @@ gizmos.usePointerToAttachGizmos = false;
 gizmos.positionGizmoEnabled = false;
 gizmos.rotationGizmoEnabled = false;
 gizmos.scaleGizmoEnabled    = false;
+
+// Make gizmo manager accessible globally for environment cleanup
+(window as any).gizmoManager = gizmos;
 if (gizmos.gizmos.rotationGizmo) {
   gizmos.gizmos.rotationGizmo.updateGizmoRotationToMatchAttachedMesh = false;
 }
@@ -119,7 +124,7 @@ function attachToCurrentSelection(): boolean {
     }
   }
   const envRoot = getActiveEnvRoot();
-  if (envRoot) {
+  if (envRoot && envRoot instanceof BABYLON.AbstractMesh) {
     gizmos.attachToMesh(envRoot);
     return true;
   }
@@ -158,6 +163,7 @@ function persistPositionIfSensor() {
   const s = sensors.get(id);
   if (!h || !s) return;
   s.position = { x: h.position.x, y: h.position.y, z: h.position.z };
+  console.log("[Persistence] Position saved for", id, ":", s.position);
 }
 function persistScaleIfSensor() {
   const id = (window as any).selectedId as string | null;
@@ -169,9 +175,27 @@ function persistScaleIfSensor() {
   const newBase = world / GLB_WORLD_SCALE;
   s.scale = newBase > 0.0001 ? newBase : 0.0001;
   h.scaling.setAll(s.scale * GLB_WORLD_SCALE);
+  console.log("[Persistence] Scale saved for", id, ":", s.scale);
+}
+function persistRotationIfSensor() {
+  const id = (window as any).selectedId as string | null;
+  if (!id) return;
+  const h = sensorHandles.get(id);
+  const s = sensors.get(id);
+  if (!h || !s) return;
+  const r = (h.rotationQuaternion ? h.rotationQuaternion.toEulerAngles() : h.rotation);
+  const toDeg = (rad: number) => rad * 180 / Math.PI;
+  s.rotationEulerDeg = { x: toDeg(r.x), y: toDeg(r.y), z: toDeg(r.z) };
+  console.log("[Persistence] Rotation saved for", id, ":", s.rotationEulerDeg);
 }
 gizmos.gizmos.positionGizmo?.onDragEndObservable.add(persistPositionIfSensor);
 gizmos.gizmos.scaleGizmo?.onDragEndObservable.add(persistScaleIfSensor);
+gizmos.gizmos.rotationGizmo?.onDragEndObservable.add(persistRotationIfSensor);
+
+// اضافه کردن persistence برای تغییرات مداوم
+gizmos.gizmos.positionGizmo?.onDragObservable.add(persistPositionIfSensor);
+gizmos.gizmos.scaleGizmo?.onDragObservable.add(persistScaleIfSensor);
+gizmos.gizmos.rotationGizmo?.onDragObservable.add(persistRotationIfSensor);
 
 /* ---------------------------------------------
    Scene: add/bind/save/load sensors
@@ -185,13 +209,14 @@ btnAdd.addEventListener("click", async () => {
     label: `${type}-${id.slice(2)}`,
     deviceId: `${type.slice(0,3)}-${Math.floor(100 + Math.random() * 900)}`,
     position: { x: 0, y: 0.7, z: 0 },
-    color: palette[type],
-    scale: 5.0,
+    // color: palette[type], // Removed to preserve original GLB materials
+    scale: 1.0,
   };
   sensors.set(id, s);
   createSensorHandle(s);
   (window as any).selectedId = id;
   fillPropertyPanel(s);
+  updateSensorList();
 
   if (btnMove?.getAttribute("aria-pressed") === "true") enableMove();
   else if (btnRotate?.getAttribute("aria-pressed") === "true") enableRotate();
@@ -206,22 +231,20 @@ btnBind.addEventListener("click", () => {
   s.deviceId = (document.getElementById("p_device") as HTMLInputElement).value || s.deviceId;
   s.topic    = (document.getElementById("p_topic")  as HTMLInputElement).value || undefined;
   s.color    = (document.getElementById("p_color")  as HTMLInputElement).value || s.color;
-  s.scale    = Number((document.getElementById("p_scale") as HTMLInputElement).value || s.scale || 5.0);
+  s.scale    = Number((document.getElementById("p_scale") as HTMLInputElement).value || s.scale || 1.0);
 
   const h = sensorHandles.get(id)!;
-  h.scaling.setAll((s.scale ?? 5.0) * GLB_WORLD_SCALE);
-  tintHierarchy(h, s.color ?? palette[s.type]);
+  h.scaling.setAll((s.scale ?? 1.0) * GLB_WORLD_SCALE);
+  // tintHierarchy(h, s.color ?? palette[s.type]); // Removed to preserve original GLB materials
   (h as any).metadata.deviceId = s.deviceId;
+  
+  // ذخیره‌سازی دستی ترنسفورم‌ها
+  persistPositionIfSensor();
+  persistScaleIfSensor();
+  persistRotationIfSensor();
 });
 
-btnSave.addEventListener("click", saveSceneSensors);
-fileLoad.addEventListener("change", async () => {
-  const f = fileLoad.files?.[0]; if (!f) return;
-  await loadSceneSensorsFromFile(f);
-  if (btnMove?.getAttribute("aria-pressed") === "true") enableMove();
-  else if (btnRotate?.getAttribute("aria-pressed") === "true") enableRotate();
-  else if (btnScale?.getAttribute("aria-pressed") === "true") enableScale();
-});
+// scene JSON save/load removed per requirement
 
 /* ---------------------------------------------
    Tools dock actions
@@ -243,6 +266,7 @@ btnDel   ?.addEventListener("click", () => {
     (window as any).selectedId = null;
     hidePopup();
     enableSelect();
+    updateSensorList();
   } else {
     // delete active environment
     removeActiveEnvironment();
@@ -279,23 +303,35 @@ btnSaveProject?.addEventListener("click", async () => {
 });
 
 fileLoadProject?.addEventListener("change", async () => {
-  const f = fileLoadProject.files?.[0]; if (!f) return;
-  await loadProjectFromFile(f);
-  if (btnMove?.getAttribute("aria-pressed") === "true") enableMove();
-  else if (btnRotate?.getAttribute("aria-pressed") === "true") enableRotate();
-  else if (btnScale?.getAttribute("aria-pressed") === "true") enableScale();
-});
+  const f = fileLoadProject.files?.[0];
+  if (!f) return;
+  
+const name = f.name.toLowerCase();
+try {
+  if (name.endsWith(".dtsp")) {
+    await loadProjectFromDtsp(f);
+  } else {
+    await loadProjectFromFile(f as any);
+  }
+} catch (err:any) {
+  console.error("[LoadProject] failed:", err);
+  alert("Load failed: " + (err?.message || err));
+} finally {
+  (fileLoadProject as any).value = "";
+}
+}
+);
 
 /* ---------------------------------------------
    Camera framing (double-click)
 ---------------------------------------------- */
-function frameNode(node: BABYLON.Node, pad = 1.6, maxRadius = 120) {
+function frameNode(node: BABYLON.Node, pad = 0.4, maxRadius = 30) {
   const bb = (node as any).getHierarchyBoundingVectors?.();
   if (!bb) return;
   const min: BABYLON.Vector3 = bb.min, max: BABYLON.Vector3 = bb.max;
   const center = BABYLON.Vector3.Center(min, max);
   const diag   = max.subtract(min);
-  const radius = Math.max(diag.length() * 0.5 * pad, 3);
+  const radius = Math.max(diag.length() * 0.5 * pad, 0.5);
 
   const toTarget = center;
   const toRadius = Math.min(radius, maxRadius);
@@ -370,3 +406,10 @@ scene.onPointerObservable.add((pi) => {
    MQTT buttons
 ---------------------------------------------- */
 wireMqttButtons();
+
+/* ---------------------------------------------
+   Initialize UI
+---------------------------------------------- */
+// Initialize environment and sensor lists
+updateEnvironmentList();
+updateSensorList();

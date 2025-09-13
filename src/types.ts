@@ -15,6 +15,7 @@ topic?: string;
 position: { x: number; y: number; z: number };
 color?: string;
 scale?: number;
+rotationEulerDeg?: { x: number; y: number; z: number };
 };
 
 
@@ -24,17 +25,7 @@ export type Reading =
 | { deviceId: string; kind: "solar"; ts: number; powerW: number; voltage: number; current: number };
 
 
-export type ProjectFile = {
-kind: "digital-twin-project";
-version: 1;
-connection: { url: string; topic: string; user?: string; pass?: string };
-sensors: SensorNode[];
-environment?: {
-name: string;
-dataB64: string; // GLB embedded as base64
-transform: { position: {x:number;y:number;z:number}; rotationYDeg: number; scale: number };
-};
-};
+// Removed duplicate ProjectFile type - using the v2 version below
 
 
 export const palette: Record<SensorType, string> = {
@@ -54,20 +45,20 @@ export type ProjectEnvironment = {
     transform: { position: {x:number;y:number;z:number}; rotationYDeg: number; scale: number };
   };
   
-  export type ProjectFile = {
-    kind: "digital-twin-project";
-    version: 2; // ← نسخه جدید
-    connection: { url: string; topic: string; user?: string; pass?: string };
-    sensors: SensorNode[];
-    // نسخه جدید:
-    environments?: ProjectEnvironment[];
-    // سازگاری با پروژه‌های قدیمی (v1):
-    environment?: {
-      name: string;
-      dataB64: string;
-      transform: { position: {x:number;y:number;z:number}; rotationYDeg: number; scale: number };
-    };
+export type ProjectFile = {
+  kind: "digital-twin-project";
+  version: 2; // ← نسخه جدید
+  connection: { url: string; topic: string; user?: string; pass?: string };
+  sensors: SensorNode[];
+  // نسخه جدید:
+  environments?: ProjectEnvironment[];
+  // سازگاری با پروژه‌های قدیمی (v1):
+  environment?: {
+    name: string;
+    dataB64: string;
+    transform: { position: {x:number;y:number;z:number}; rotationYDeg: number; scale: number };
   };
+};
   
 
 export const genId = () => "s-" + Math.random().toString(36).slice(2, 8);

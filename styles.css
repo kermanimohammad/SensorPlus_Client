@@ -18,18 +18,44 @@ body{
 
 /* Drawer */
 .drawer{
-  position:fixed;right:12px;top:12px;bottom:12px;z-index:25;
+  position:fixed;left:12px;top:12px;bottom:12px;z-index:25;
   width:360px;max-width:calc(100% - 24px);
   display:grid;grid-template-rows:auto auto auto 1fr auto;
   background:var(--panel-bg);border:1px solid var(--panel-bd);
   border-radius:14px;backdrop-filter:blur(10px);
   transform:translateX(0);transition:transform .25s ease,opacity .2s ease;
 }
-.drawer.collapsed{transform:translateX(calc(100% + 12px));opacity:.98;pointer-events:none}
+.drawer.collapsed{transform:translateX(calc(-100% - 12px));opacity:.98;pointer-events:none}
 
 .drawer-header{
   display:flex;align-items:center;justify-content:space-between;
   padding:8px 10px;border-bottom:1px solid var(--panel-bd)
+}
+.drawer-header .btn.ghost{
+  background:linear-gradient(135deg, #ff6b6b, #ee5a52);
+  color:#fff;
+  border:1px solid #ff5252;
+  width:32px;
+  height:32px;
+  padding:0;
+  box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
+  transition: all 0.2s ease;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.drawer-header .btn.ghost:hover{
+  background:linear-gradient(135deg, #ff5252, #e53935);
+  border-color:#f44336;
+  color:#fff;
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
+  transform: translateY(-1px);
+}
+.drawer-header .btn.ghost .icon{
+  width:16px;
+  height:16px;
+  filter: brightness(0) invert(1);
+  margin:0;
 }
 .drawer-title{font-weight:600;letter-spacing:.2px}
 
@@ -87,7 +113,18 @@ input[type="color"]{
   width:100%;height:40px;padding:3px;border-radius:10px;border:1px solid var(--panel-bd);
   background:rgba(255,255,255,.05)
 }
-#catalog{font-weight:700;letter-spacing:.2px;background:rgba(255,255,255,.14)}
+#catalog{
+  font-weight:700;
+  letter-spacing:.2px;
+  background:rgba(0,0,0,.4);
+  color:#ffffff;
+  border-color:rgba(255,255,255,.2);
+}
+#catalog option{
+  background:rgba(0,0,0,.8);
+  color:#ffffff;
+  padding:8px 12px;
+}
 
 /* انتخاب + دکمه در یک خط */
 .select-line{ display:grid; grid-template-columns: 1fr auto; gap:8px; }
@@ -148,6 +185,39 @@ input[type="color"]{
   display:inline-block;margin:4px 6px 0 0;padding:4px 8px;border-radius:999px;
   background:rgba(0,0,0,.35);border:1px solid var(--panel-bd);color:var(--text)
 }
+.list-empty{
+  color:var(--muted);font-style:italic;text-align:center;padding:12px 0;
+}
+.env-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 10px;margin:4px 0;border-radius:8px;
+  background:rgba(255,255,255,.06);border:1px solid var(--panel-bd);
+  transition:background .15s ease;
+}
+.env-item:hover{background:rgba(255,255,255,.1)}
+.env-item .env-name{color:var(--text);font-weight:600;flex:1}
+.env-item .env-delete{
+  background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;
+  padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;
+  transition:background .15s ease;
+}
+.env-item .env-delete:hover{background:#fecaca}
+.sensor-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 10px;margin:4px 0;border-radius:8px;
+  background:rgba(255,255,255,.06);border:1px solid var(--panel-bd);
+  transition:background .15s ease;
+}
+.sensor-item:hover{background:rgba(255,255,255,.1)}
+.sensor-item .sensor-info{color:var(--text);flex:1}
+.sensor-item .sensor-name{font-weight:600;margin-bottom:2px}
+.sensor-item .sensor-details{font-size:11px;color:var(--muted)}
+.sensor-item .sensor-delete{
+  background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;
+  padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;
+  transition:background .15s ease;
+}
+.sensor-item .sensor-delete:hover{background:#fecaca}
 
 /* Drawer footer */
 .drawer-footer{
@@ -162,15 +232,16 @@ input[type="color"]{
   position:fixed;left:12px;top:12px;z-index:30;
   background:rgba(255,255,255,0.9);border:1px solid var(--panel-bd);
   padding:0;border-radius:999px;color:#111;cursor:pointer;
-  display:inline-flex;align-items:center;justify-content:center;
+  display:none;align-items:center;justify-content:center;
   width:40px;height:40px;transition:background .15s ease
 }
 .floating-open:hover{ background:#fff; }
+.floating-open.show{ display:inline-flex; }
 
 /* Tools dock (always on top) */
 .tools-dock{
   position: fixed;
-  left: 12px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%);
   z-index: 10000;

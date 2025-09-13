@@ -53,6 +53,7 @@
       </div>
 
       <div class="tabs">
+        <div class="tab" data-tab="project">Project</div>
         <div class="tab active" data-tab="scene">Scene</div>
         <div class="tab" data-tab="props">Properties</div>
         <div class="tab" data-tab="connection">Connection</div>
@@ -80,6 +81,13 @@
               <span class="file-chip" data-default="Choose File">Choose File</span>
               <span class="file-name">No file chosen</span>
             </label>
+          </div>
+
+          <div class="row">
+            <label>Loaded Environments</label>
+            <div id="envList" class="list">
+              <div class="list-empty">No environments loaded</div>
+            </div>
           </div>
         </div>
 
@@ -110,9 +118,19 @@
               </button>
             </div>
           </div>
+
+          <div class="row">
+            <label>Loaded Sensors</label>
+            <div id="sensorList" class="list">
+              <div class="list-empty">No sensors loaded</div>
+            </div>
+          </div>
         </div>
 
-        <!-- 3) Project -->
+      </section>
+
+      <!-- ===================== PROJECT ===================== -->
+      <section id="panel-project" class="panel">
         <div class="group">
           <div class="group-head">
             <div class="head-icon">
@@ -133,24 +151,7 @@
           <div class="row">
             <label>Load Project</label>
             <label class="file-uploader">
-              <input id="fileLoadProject" type="file" accept=".dtproj,.json" />
-              <span class="file-chip" data-default="Choose File">Choose File</span>
-              <span class="file-name">No file chosen</span>
-            </label>
-          </div>
-
-          <div class="row partition"></div>
-
-          <div class="row">
-            <button id="btnSave" class="btn full">
-              <img src="/icons/save.svg" alt="" class="icon" /> Save Scene JSON
-            </button>
-          </div>
-
-          <div class="row">
-            <label>Load Scene JSON</label>
-            <label class="file-uploader">
-              <input id="fileLoad" type="file" accept=".json" />
+              <input id="fileLoadProject" type="file" accept=".dtsp" />
               <span class="file-chip" data-default="Choose File">Choose File</span>
               <span class="file-name">No file chosen</span>
             </label>
@@ -181,7 +182,7 @@
           </div>
           <div>
             <label>Scale</label>
-            <input id="p_scale" type="number" step="0.1" value="5.0"/>
+            <input id="p_scale" type="number" step="0.1" value="1.0"/>
           </div>
         </div>
         <div class="row">
@@ -245,6 +246,7 @@
       const btnClose = document.getElementById('btnCloseDrawer');
       const tabs = Array.from(document.querySelectorAll('.tab'));
       const panels = {
+        project: document.getElementById('panel-project'),
         scene: document.getElementById('panel-scene'),
         props: document.getElementById('panel-props'),
         connection: document.getElementById('panel-connection'),
@@ -253,10 +255,23 @@
         tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabKey));
         Object.entries(panels).forEach(([k, el]) => el.classList.toggle('active', k === tabKey));
       }
+      function updateFloatingButton() {
+        const isCollapsed = drawer.classList.contains('collapsed');
+        btnToggle.classList.toggle('show', isCollapsed);
+      }
       tabs.forEach(t => t.addEventListener('click', () => setActive(t.dataset.tab)));
-      btnToggle.addEventListener('click', () => drawer.classList.toggle('collapsed'));
-      btnClose.addEventListener('click', () => drawer.classList.add('collapsed'));
-      if (window.innerWidth < 1100) drawer.classList.add('collapsed');
+      btnToggle.addEventListener('click', () => {
+        drawer.classList.toggle('collapsed');
+        updateFloatingButton();
+      });
+      btnClose.addEventListener('click', () => {
+        drawer.classList.add('collapsed');
+        updateFloatingButton();
+      });
+      if (window.innerWidth < 1100) {
+        drawer.classList.add('collapsed');
+      }
+      updateFloatingButton();
 
       const topicInput = document.getElementById('brokerTopic');
       const topicChip  = document.getElementById('topicChip');

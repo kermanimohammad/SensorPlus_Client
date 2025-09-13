@@ -1,5 +1,5 @@
-import * as BABYLON from "babylonjs";
-import { GridMaterial } from "babylonjs-materials";
+import * as BABYLON from "@babylonjs/core";
+import { GridMaterial } from "@babylonjs/materials";
 
 
 export const app = document.getElementById("app")!;
@@ -17,7 +17,9 @@ scene.clearColor = new BABYLON.Color4(0.05, 0.06, 0.10, 1);
 export const camera = new BABYLON.ArcRotateCamera(
 "cam", Math.PI/3, Math.PI/3, 22, new BABYLON.Vector3(0,1,0), scene
 );
-camera.lowerRadiusLimit = 6; camera.upperRadiusLimit = 200; camera.attachControl(canvas, true);
+camera.lowerRadiusLimit = 1; camera.upperRadiusLimit = 200; 
+camera.minZ = 0.01; // Very close near clipping plane for extreme close-up viewing
+camera.attachControl(canvas, true);
 new BABYLON.HemisphericLight("hemi", new BABYLON.Vector3(0.2,1,0.3), scene);
 
 
