@@ -23,6 +23,7 @@ import {
   updateSensorList,
   selectSensorById,
   frameSensorById,
+  popupDevId,
 } from "./sensors";
 
 // env (multi-environment API)
@@ -467,10 +468,19 @@ btnAdd.addEventListener("click", async () => {
   await prefabsReady;
   const id   = genId();
   const type = (catalog.value as SensorType) || "temperature";
+  // تنظیم deviceId پیش‌فرض بر اساس نوع سنسور
+  const defaultDeviceIds: Record<SensorType, string> = {
+    temperature: "temp-1",
+    humidity: "hum-1", 
+    co2: "co2-1",
+    light: "light-1",
+    solar: "solar-plant"
+  };
+  
   const s: SensorNode = {
     id, type,
     label: `${type}-${id.slice(2)}`,
-    deviceId: `${type.slice(0,3)}-${Math.floor(100 + Math.random() * 900)}`,
+    deviceId: defaultDeviceIds[type] || `${type.slice(0,3)}-${Math.floor(100 + Math.random() * 900)}`,
     position: { x: 0, y: 0.7, z: 0 },
     // color: palette[type], // Removed to preserve original GLB materials
     scale: 1.0,
@@ -526,6 +536,14 @@ sceneBtnBind.addEventListener("click", () => {
   const h = sensorHandles.get(id)!;
   h.scaling.setAll((s.scale ?? 1.0) * GLB_WORLD_SCALE);
   (h as any).metadata.deviceId = s.deviceId;
+  
+  // اگر tooltip باز است و deviceId تغییر کرده، آن را به‌روزرسانی کن
+  if (popupDevId && popupDevId !== s.deviceId) {
+    // اگر سنسور فعلی انتخاب شده و tooltip باز است، tooltip را به‌روزرسانی کن
+    if ((window as any).selectedId === id) {
+      showPopupFor(s.deviceId, h);
+    }
+  }
   
   // ذخیره‌سازی دستی ترنسفورم‌ها
   persistPositionIfSensor();

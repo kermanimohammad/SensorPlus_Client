@@ -171,6 +171,12 @@ class DigitalTwinApiClient {
       const reading = this.convertToReading(deviceData);
       latestByDev.set(deviceId, reading);
       
+      // Debug: نمایش به‌روزرسانی داده‌ها
+      console.log(`[API] Updated reading for device: ${deviceId}`, {
+        reading: reading,
+        timestamp: new Date(reading.ts).toLocaleTimeString()
+      });
+      
       // Find matching sensor in scene
       let targetSensorId: string | undefined;
       for (const sensor of sensors.values()) {

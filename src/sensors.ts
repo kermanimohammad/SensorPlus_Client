@@ -134,12 +134,21 @@ export function applyReadingToSensor(handle: BABYLON.AbstractMesh, reading: Read
 const popup = document.createElement("div"); popup.style.cssText = `position:fixed;z-index:30;min-width:240px;max-width:380px;background:#000c;color:#fff;padding:10px 12px;border-radius:10px;font:13px system-ui;display:none;pointer-events:auto;box-shadow:0 10px 24px rgba(0,0,0,.35)`;
 const pTitle=document.createElement("div"); pTitle.style.fontWeight="700"; const pL1=document.createElement("div"); const pL2=document.createElement("div"); pL2.style.color="#cbd5e1"; const pTs=document.createElement("div"); pTs.style.cssText="color:#94a3b8;font-size:12px;margin-top:4px"; const pClose=document.createElement("button"); pClose.textContent="✕"; pClose.style.cssText="position:absolute;top:4px;right:6px;background:transparent;color:#fff;border:0;font-size:16px;cursor:pointer"; pClose.onclick=()=>{ hidePopup(); }; popup.append(pTitle,pL1,pL2,pTs,pClose); document.body.appendChild(popup);
 let popupTarget: BABYLON.AbstractMesh | null = null; 
-let popupDevId: string | null = null;
+export let popupDevId: string | null = null;
 let popupUpdateInterval: number | null = null;
 
 export function renderPopupContent(d?: Reading){ 
   if(!popupDevId) return; 
   const data = d ?? latestByDev.get(popupDevId); 
+  
+  // Debug: نمایش اطلاعات tooltip
+  console.log(`[Tooltip] Rendering for device: ${popupDevId}`, {
+    hasData: !!data,
+    data: data,
+    latestByDevSize: latestByDev.size,
+    allDevices: Array.from(latestByDev.keys())
+  });
+  
   pTitle.textContent = `Device: ${popupDevId}`; 
   if(data){ 
     if(data.kind==="light"){ 
