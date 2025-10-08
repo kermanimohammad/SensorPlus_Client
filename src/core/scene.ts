@@ -19,6 +19,11 @@ export const camera = new BABYLON.ArcRotateCamera(
 );
 camera.lowerRadiusLimit = 1; camera.upperRadiusLimit = 200; 
 camera.minZ = 0.01; // Very close near clipping plane for extreme close-up viewing
+
+// تنظیمات زوم برای کنترل بهتر سرعت
+camera.wheelPrecision = 20; // کاهش سرعت زوم (مقدار بالاتر = زوم کندتر)
+camera.zoomToMouseLocation = false; // زوم به سمت مرکز صحنه
+
 camera.attachControl(canvas, true);
 new BABYLON.HemisphericLight("hemi", new BABYLON.Vector3(0.2,1,0.3), scene);
 

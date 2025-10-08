@@ -9,6 +9,8 @@ import {
 } from "./env";
 import { sensors, sensorHandles, createSensorHandle, prefabsReady, updateSensorList } from "./sensors";
 import { GLB_WORLD_SCALE } from "./types";
+import { apiClient } from "./api-client";
+import { updateConnectionUI } from "./api-ui";
 
 // ---------- Types (relaxed for browser FS API) ----------
 type DirHandle = any;
@@ -170,6 +172,13 @@ export async function saveProjectToFolder() {
         console.warn("[Save] Missing dataB64 for env:", e.name, e.id);
       }
 
+      // Debug: نمایش مقادیر فعلی ترنسفورم
+      console.log("[Save] Environment transform for", e.name, ":", {
+        position: { x: r.position.x, y: r.position.y, z: r.position.z },
+        rotation: { x: r.rotation?.x || 0, y: r.rotation?.y || 0, z: r.rotation?.z || 0 },
+        scale: { x: r.scaling.x, y: r.scaling.y, z: r.scaling.z }
+      });
+
       metaEnvs.push({
         name: e.name || "Env",
         file,
@@ -185,10 +194,18 @@ export async function saveProjectToFolder() {
       });
     }
 
+    // دریافت اطلاعات کانکشن API
+    const connectionInfo = apiClient.getConnectionInfo();
+    
     const projectJson = {
       kind: "digital-twin-project-meta",
       version: 3,
       savedAt: new Date().toISOString(),
+      connection: {
+        url: connectionInfo.url,
+        pollingInterval: connectionInfo.pollingInterval,
+        isConnected: connectionInfo.isConnected
+      },
       environments: metaEnvs,
       sensors: serializeSensors(),
     };
@@ -242,6 +259,13 @@ export async function saveProjectToFolder() {
       console.warn("[Save] Missing dataB64 for env:", e.name, e.id);
     }
 
+    // Debug: نمایش مقادیر فعلی ترنسفورم
+    console.log("[Save] Environment transform for", e.name, ":", {
+      position: { x: r.position.x, y: r.position.y, z: r.position.z },
+      rotation: { x: r.rotation?.x || 0, y: r.rotation?.y || 0, z: r.rotation?.z || 0 },
+      scale: { x: r.scaling.x, y: r.scaling.y, z: r.scaling.z }
+    });
+
     metaEnvs.push({
       name: e.name || "Env",
       file,
@@ -257,11 +281,19 @@ export async function saveProjectToFolder() {
     });
   }
 
+  // دریافت اطلاعات کانکشن API
+  const connectionInfo = apiClient.getConnectionInfo();
+  
   // project.json (temp + zip)
   const projectJson = {
     kind: "digital-twin-project-meta",
     version: 3,
     savedAt: new Date().toISOString(),
+    connection: {
+      url: connectionInfo.url,
+      pollingInterval: connectionInfo.pollingInterval,
+      isConnected: connectionInfo.isConnected
+    },
     environments: metaEnvs,
     sensors: serializeSensors(),
   };
@@ -292,6 +324,14 @@ export async function loadProjectFromFile(file: File): Promise<void> {
 
   clearAllEnvironments();
   clearAllSensorsSoft();
+
+  // بازیابی اطلاعات کانکشن API
+  if (data.connection) {
+    apiClient.updateServerUrl(data.connection.url);
+    apiClient.updatePollingInterval(data.connection.pollingInterval);
+    updateConnectionUI(data.connection);
+    console.info("[Load JSON] Connection info restored:", data.connection);
+  }
 
   // v3-style meta with environments[]
   if (Array.isArray(data?.environments)) {
@@ -369,6 +409,11 @@ export async function loadProjectFromDtsp(file: File | Blob): Promise<void> {
   const metaText = await metaEntry.async("string");
   const meta = JSON.parse(metaText) as {
     version?: number;
+    connection?: {
+      url: string;
+      pollingInterval: number;
+      isConnected: boolean;
+    };
     environments?: Array<{
       name?: string;
       file?: string;        // path in zip
@@ -385,6 +430,14 @@ export async function loadProjectFromDtsp(file: File | Blob): Promise<void> {
 
   clearAllEnvironments();
   clearAllSensorsSoft();
+
+  // بازیابی اطلاعات کانکشن API
+  if (meta.connection) {
+    apiClient.updateServerUrl(meta.connection.url);
+    apiClient.updatePollingInterval(meta.connection.pollingInterval);
+    updateConnectionUI(meta.connection);
+    console.info("[DTSP] Connection info restored:", meta.connection);
+  }
 
   // Envs
   for (const e of (meta.environments || [])) {

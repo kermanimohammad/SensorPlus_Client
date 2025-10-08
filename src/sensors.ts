@@ -3,6 +3,7 @@ import "@babylonjs/loaders";
 import { scene, camera, startRenderLoop } from "./core/scene";
 import { GLB_WORLD_SCALE, ENABLE_PULSE } from "./types";
 import type { SensorNode, SensorType, Reading } from "./types";
+import { updateEnvironmentList } from "./env";
 
 export const sensors = new Map<string, SensorNode>();
 export const sensorHandles = new Map<string, BABYLON.AbstractMesh>();
@@ -104,28 +105,113 @@ export function applyReadingToSensor(handle: BABYLON.AbstractMesh, reading: Read
   const base = (sensors.get(info.sensorId)?.scale ?? 1) * GLB_WORLD_SCALE;
   const setPulse=(t:number,a=0.15)=>{ if(!ENABLE_PULSE){ handle.scaling.setAll(base); return;} handle.scaling.setAll(base*(1+a*t)); };
   const children = handle.getChildMeshes(); const targetMeshes = children.length?children:[handle];
-  const setEmissive=(c: BABYLON.Color3)=> targetMeshes.forEach(m=>{ const mat=m.material as any; if(mat?.emissiveColor!==undefined) mat.emissiveColor=c; });
+  // const setEmissive=(c: BABYLON.Color3)=> targetMeshes.forEach(m=>{ const mat=m.material as any; if(mat?.emissiveColor!==undefined) mat.emissiveColor=c; }); // غیرفعال شده - رنگ تغییر نمی‌کند
   const clamp=(v:number,lo:number,hi:number)=> Math.max(lo, Math.min(hi,v)); const norm=(v:number,lo:number,hi:number)=> (clamp(v,lo,hi)-lo)/(hi-lo);
-  const color3 = (hex:string)=> BABYLON.Color3.FromHexString(hex); // Local helper for reading effects
-  if(reading.kind==="solar"){ const t=norm(reading.powerW,0,1000); setPulse(t,0.25); setEmissive(BABYLON.Color3.Lerp(color3("#996f00"), color3("#ffd166"), t)); }
-  else if(reading.kind==="light"){ const vis = reading.on?1:0.25; targetMeshes.forEach(m=>m.visibility=vis); handle.scaling.setAll(base); }
-  else { let t=0, baseCol=color3("#aaa"); if(reading.kind==="temperature"){t=norm(reading.value,15,35); baseCol=color3("#ff5a5f");} if(reading.kind==="humidity"){t=norm(reading.value,0,100); baseCol=color3("#00b894");} if(reading.kind==="co2"){t=norm(reading.value,400,2000); baseCol=color3("#3a86ff");}
-    setPulse(t,0.15); setEmissive(BABYLON.Color3.Lerp(baseCol.scale(0.4), baseCol, t)); }
+  // const color3 = (hex:string)=> BABYLON.Color3.FromHexString(hex); // غیرفعال شده - رنگ تغییر نمی‌کند
+  
+  if(reading.kind==="solar"){ 
+    const t=norm(reading.powerW,0,1000); 
+    setPulse(t,0.25); 
+    // setEmissive(BABYLON.Color3.Lerp(color3("#996f00"), color3("#ffd166"), t)); // غیرفعال شده
+  }
+  else if(reading.kind==="light"){ 
+    const vis = reading.on?1:0.25; 
+    targetMeshes.forEach(m=>m.visibility=vis); 
+    handle.scaling.setAll(base); 
+  }
+  else { 
+    let t=0; 
+    // let baseCol=color3("#aaa"); // غیرفعال شده
+    if(reading.kind==="temperature"){t=norm(reading.value,15,35);} 
+    if(reading.kind==="humidity"){t=norm(reading.value,0,100);} 
+    if(reading.kind==="co2"){t=norm(reading.value,400,2000);}
+    setPulse(t,0.15); 
+    // setEmissive(BABYLON.Color3.Lerp(baseCol.scale(0.4), baseCol, t)); // غیرفعال شده
+  }
 }
 
 // Simple popup overlay (kept minimal)
 const popup = document.createElement("div"); popup.style.cssText = `position:fixed;z-index:30;min-width:240px;max-width:380px;background:#000c;color:#fff;padding:10px 12px;border-radius:10px;font:13px system-ui;display:none;pointer-events:auto;box-shadow:0 10px 24px rgba(0,0,0,.35)`;
-const pTitle=document.createElement("div"); pTitle.style.fontWeight="700"; const pL1=document.createElement("div"); const pL2=document.createElement("div"); pL2.style.color="#cbd5e1"; const pTs=document.createElement("div"); pTs.style.cssText="color:#94a3b8;font-size:12px;margin-top:4px"; const pClose=document.createElement("button"); pClose.textContent="✕"; pClose.style.cssText="position:absolute;top:4px;right:6px;background:transparent;color:#fff;border:0;font-size:16px;cursor:pointer"; pClose.onclick=()=>{ popup.style.display="none"; popupTarget=null; popupDevId=null; }; popup.append(pTitle,pL1,pL2,pTs,pClose); document.body.appendChild(popup);
-let popupTarget: BABYLON.AbstractMesh | null = null; let popupDevId: string | null = null;
-export function renderPopupContent(d?: Reading){ if(!popupDevId) return; const data = d ?? latestByDev.get(popupDevId); pTitle.textContent = `Device: ${popupDevId}`; if(data){ if((data as any).kind==="light"){ pL1.textContent=`light: ${(data as any).on?"ON":"OFF"} | ${(data as any).powerW.toFixed(1)} W`; pL2.textContent=(data as any).roomId?`room: ${(data as any).roomId}`:""; }
- else if((data as any).kind==="solar"){ pL1.textContent=`solar: ${(data as any).powerW.toFixed(1)} W`; pL2.textContent=`V=${(data as any).voltage.toFixed(2)} • I=${(data as any).current.toFixed(2)}`; }
- else { pL1.textContent=`${(data as any).kind}: ${(data as any).value.toFixed(2)} ${(data as any).unit}`; pL2.textContent=(data as any).roomId?`room: ${(data as any).roomId}`:""; } pTs.textContent=`updated: ${new Date((data as any).ts).toLocaleTimeString()}`; } else { pL1.textContent="no data yet"; pL2.textContent=""; pTs.textContent=""; } }
-export function showPopupFor(deviceId:string, handle:BABYLON.AbstractMesh){ popupDevId=deviceId; popupTarget=handle; renderPopupContent(); popup.style.display="block"; updatePopupPosition(); }
-export function updatePopupPosition(){ if(!popupTarget) return; const pos = popupTarget.getAbsolutePosition(); const p = BABYLON.Vector3.Project(pos, BABYLON.Matrix.Identity(), scene.getTransformMatrix(), camera.viewport.toGlobal(scene.getEngine().getRenderWidth(), scene.getEngine().getRenderHeight())); popup.style.left=Math.round(p.x+16)+"px"; popup.style.top=Math.round(p.y-16)+"px"; }
+const pTitle=document.createElement("div"); pTitle.style.fontWeight="700"; const pL1=document.createElement("div"); const pL2=document.createElement("div"); pL2.style.color="#cbd5e1"; const pTs=document.createElement("div"); pTs.style.cssText="color:#94a3b8;font-size:12px;margin-top:4px"; const pClose=document.createElement("button"); pClose.textContent="✕"; pClose.style.cssText="position:absolute;top:4px;right:6px;background:transparent;color:#fff;border:0;font-size:16px;cursor:pointer"; pClose.onclick=()=>{ hidePopup(); }; popup.append(pTitle,pL1,pL2,pTs,pClose); document.body.appendChild(popup);
+let popupTarget: BABYLON.AbstractMesh | null = null; 
+let popupDevId: string | null = null;
+let popupUpdateInterval: number | null = null;
+
+export function renderPopupContent(d?: Reading){ 
+  if(!popupDevId) return; 
+  const data = d ?? latestByDev.get(popupDevId); 
+  pTitle.textContent = `Device: ${popupDevId}`; 
+  if(data){ 
+    if(data.kind==="light"){ 
+      pL1.textContent=`light: ${data.on?"ON":"OFF"} | ${data.powerW.toFixed(1)} W (est.)`; 
+      pL2.textContent=data.roomId?`room: ${data.roomId}`:""; 
+    }
+    else if(data.kind==="solar"){ 
+      pL1.textContent=`solar: ${data.powerW.toFixed(1)} W`; 
+      pL2.textContent=`V=${data.voltage.toFixed(2)} • I=${data.current.toFixed(2)} (est.)`; 
+    }
+    else { 
+      pL1.textContent=`${data.kind}: ${data.value.toFixed(2)} ${data.unit}`; 
+      pL2.textContent=data.roomId?`room: ${data.roomId}`:""; 
+    } 
+    pTs.textContent=`updated: ${new Date(data.ts).toLocaleTimeString()}`; 
+  } else { 
+    pL1.textContent="no data yet"; 
+    pL2.textContent=""; 
+    pTs.textContent=""; 
+  } 
+}
+
+export function showPopupFor(deviceId:string, handle:BABYLON.AbstractMesh){ 
+  // متوقف کردن auto-update قبلی اگر وجود دارد
+  stopPopupAutoUpdate();
+  
+  popupDevId=deviceId; 
+  popupTarget=handle; 
+  renderPopupContent(); 
+  popup.style.display="block"; 
+  updatePopupPosition(); 
+  
+  // شروع auto-update برای tooltip
+  startPopupAutoUpdate();
+}
+
+export function updatePopupPosition(){ 
+  if(!popupTarget) return; 
+  const pos = popupTarget.getAbsolutePosition(); 
+  const p = BABYLON.Vector3.Project(pos, BABYLON.Matrix.Identity(), scene.getTransformMatrix(), camera.viewport.toGlobal(scene.getEngine().getRenderWidth(), scene.getEngine().getRenderHeight())); 
+  popup.style.left=Math.round(p.x+16)+"px"; 
+  popup.style.top=Math.round(p.y-16)+"px"; 
+}
+
 export function hidePopup(){
   popup.style.display = "none";
   popupTarget = null;
   popupDevId = null;
+  
+  // متوقف کردن auto-update
+  stopPopupAutoUpdate();
+}
+
+// شروع auto-update برای tooltip
+function startPopupAutoUpdate() {
+  // اگر قبلاً interval فعال است، آن را پاک کن
+  stopPopupAutoUpdate();
+  
+  // هر 1 ثانیه tooltip را به‌روزرسانی کن
+  popupUpdateInterval = window.setInterval(() => {
+    if (popupDevId && popup.style.display !== "none") {
+      renderPopupContent();
+    }
+  }, 1000);
+}
+
+// متوقف کردن auto-update
+function stopPopupAutoUpdate() {
+  if (popupUpdateInterval) {
+    clearInterval(popupUpdateInterval);
+    popupUpdateInterval = null;
+  }
 }
 /** پاک‌سازی همه‌ی سنسورها از صحنه و state داخلیِ ماژول */
 export async function clearAllSensors(): Promise<void> {
@@ -198,15 +284,122 @@ export function updateSensorList(): void {
     return;
   }
 
-  sensorList.innerHTML = sensorArray.map(sensor => `
-    <div class="sensor-item" data-sensor-id="${sensor.id}">
-      <div class="sensor-info">
-        <div class="sensor-name">${sensor.label}</div>
-        <div class="sensor-details">${sensor.type} • ${sensor.deviceId}</div>
+  const selectedId = (window as any).selectedId;
+  
+  sensorList.innerHTML = sensorArray.map(sensor => {
+    const isSelected = selectedId === sensor.id;
+    return `
+      <div class="sensor-item ${isSelected ? 'selected' : ''}" data-sensor-id="${sensor.id}">
+        <div class="sensor-info">
+          <div class="sensor-name">${sensor.label}</div>
+          <div class="sensor-details">${sensor.type} • ${sensor.deviceId}</div>
+        </div>
+        <button class="sensor-delete" onclick="removeSensorById('${sensor.id}')">Delete</button>
       </div>
-      <button class="sensor-delete" onclick="removeSensorById('${sensor.id}')">Delete</button>
-    </div>
-  `).join('');
+    `;
+  }).join('');
+
+  // Add event listeners for click and double-click
+  sensorList.querySelectorAll('.sensor-item').forEach(item => {
+    const sensorId = item.getAttribute('data-sensor-id');
+    if (!sensorId) return;
+
+    // Single click - select sensor
+    item.addEventListener('click', (e) => {
+      // Prevent event bubbling if delete button was clicked
+      if ((e.target as HTMLElement).classList.contains('sensor-delete')) {
+        return;
+      }
+      
+      selectSensorById(sensorId);
+    });
+
+    // Double click - frame sensor
+    item.addEventListener('dblclick', (e) => {
+      // Prevent event bubbling if delete button was clicked
+      if ((e.target as HTMLElement).classList.contains('sensor-delete')) {
+        return;
+      }
+      
+      frameSensorById(sensorId);
+    });
+  });
+}
+
+// Function to select sensor by ID
+export function selectSensorById(sensorId: string): void {
+  const h = sensorHandles.get(sensorId);
+  const s = sensors.get(sensorId);
+  
+  if (h && s) {
+    // انتخاب سنسور
+    (window as any).selectedId = sensorId;
+    
+    
+    // پر کردن پنل scene properties
+    const fillScenePropertyPanel = (window as any).fillScenePropertyPanel;
+    if (fillScenePropertyPanel) {
+      fillScenePropertyPanel(s);
+    }
+    
+    // نمایش پنل scene properties
+    const showSceneProperties = (window as any).showSceneProperties;
+    if (showSceneProperties) {
+      showSceneProperties();
+    }
+    
+    // نمایش popup
+    showPopupFor(s.deviceId, h);
+    
+    // اضافه کردن highlight بصری
+    const addSelectionHighlight = (window as any).addSelectionHighlight;
+    if (addSelectionHighlight) {
+      addSelectionHighlight(h);
+    }
+    
+    // فعال‌سازی ابزار ترنسفورم در صورت انتخاب
+    const btnMove = document.getElementById("btnMove") as HTMLButtonElement;
+    const btnRotate = document.getElementById("btnToolRotate") as HTMLButtonElement;
+    const btnScale = document.getElementById("btnToolScale") as HTMLButtonElement;
+    
+    if (btnMove?.getAttribute("aria-pressed") === "true") {
+      const enableMove = (window as any).enableMove;
+      if (enableMove) enableMove();
+    } else if (btnRotate?.getAttribute("aria-pressed") === "true") {
+      const enableRotate = (window as any).enableRotate;
+      if (enableRotate) enableRotate();
+    } else if (btnScale?.getAttribute("aria-pressed") === "true") {
+      const enableScale = (window as any).enableScale;
+      if (enableScale) enableScale();
+    } else {
+      const enableSelect = (window as any).enableSelect;
+      if (enableSelect) enableSelect();
+    }
+    
+    // به‌روزرسانی لیست‌ها برای نمایش انتخاب
+    updateSensorList();
+    updateEnvironmentList();
+    
+    console.log("[DEBUG] Sensor selected from list:", sensorId);
+  }
+}
+
+// Function to frame sensor by ID
+export function frameSensorById(sensorId: string): void {
+  const h = sensorHandles.get(sensorId);
+  
+  if (h) {
+    // ابتدا سنسور را انتخاب کن
+    selectSensorById(sensorId);
+    
+    // سپس روی آن زوم کن
+    const frameNode = (window as any).frameNode;
+    if (frameNode) {
+      frameNode(h);
+    }
+    
+    console.log("[DEBUG] Sensor framed from list:", sensorId);
+  }
 }
 
 // Global function for delete buttons
@@ -236,7 +429,13 @@ export function updateSensorList(): void {
     // اگر سنسور انتخاب‌شده بود، انتخاب را پاک کن
     if ((window as any).selectedId === id) {
       (window as any).selectedId = null;
-      hidePopup();
+      hidePopup(); // این خودش auto-update را متوقف می‌کند
+      
+      // مخفی کردن پنل scene properties
+      const hideSceneProperties = (window as any).hideSceneProperties;
+      if (hideSceneProperties) {
+        hideSceneProperties();
+      }
     }
     
     // به‌روزرسانی لیست

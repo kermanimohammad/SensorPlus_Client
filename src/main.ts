@@ -4,7 +4,7 @@ import "@babylonjs/loaders";
 import { loadProjectFromDtsp } from "./project";
 
 // scene
-import { scene, camera } from "./core/scene";
+import { scene, camera, canvas } from "./core/scene";
 
 // types
 import type { SensorNode, SensorType } from "./types";
@@ -21,20 +21,30 @@ import {
   showPopupFor,
   hidePopup,
   updateSensorList,
+  selectSensorById,
+  frameSensorById,
 } from "./sensors";
 
 // env (multi-environment API)
 import {
+  envs,
   addEnvironmentFromGLBArrayBuffer,
   getActiveEnvRoot,
   setActiveEnvironment,
   resolveEnvFromMesh,
   removeActiveEnvironment,
   updateEnvironmentList,
+  selectEnvironmentById,
+  frameEnvironmentById,
+  getEnvironmentCatalog,
+  addEnvironmentFromCatalog,
 } from "./env";
 
-// mqtt
-import { wireMqttButtons } from "./mqtt";
+// api client
+import { wireApiButtons } from "./api-ui";
+
+// sensor history
+import { sensorHistoryUI } from "./sensor-history-ui";
 
 // project
 import {
@@ -45,22 +55,56 @@ import {
   saveProjectToFolder,          // ← استفاده از فولدر
 } from "./project";
 
+
 /* ---------------------------------------------
-   Property panel fill
+   Environment Catalog Management
 ---------------------------------------------- */
-function fillPropertyPanel(s: SensorNode) {
-  (document.getElementById("p_label") as HTMLInputElement).value = s.label;
-  (document.getElementById("p_device") as HTMLInputElement).value = s.deviceId;
-  (document.getElementById("p_topic") as HTMLInputElement).value = s.topic ?? "";
-  (document.getElementById("p_color") as HTMLInputElement).value = s.color ?? "";
-  (document.getElementById("p_scale") as HTMLInputElement).value = String(s.scale ?? 1.0);
+function populateEnvironmentCatalog(): void {
+  if (!envCatalogSelect) return;
+  
+  // پاک کردن گزینه‌های موجود (به جز اولین گزینه)
+  envCatalogSelect.innerHTML = '<option value="">Select from catalog...</option>';
+  
+  // اضافه کردن محیط‌های کاتالوگ
+  const catalog = getEnvironmentCatalog();
+  catalog.forEach(env => {
+    const option = document.createElement('option');
+    option.value = env.id;
+    option.textContent = `${env.name} (${env.category})`;
+    option.title = env.description;
+    envCatalogSelect.appendChild(option);
+  });
+}
+
+/* ---------------------------------------------
+   Scene Properties panel fill
+---------------------------------------------- */
+function fillScenePropertyPanel(s: SensorNode) {
+  (document.getElementById("scene_p_label") as HTMLInputElement).value = s.label;
+  (document.getElementById("scene_p_device") as HTMLInputElement).value = s.deviceId;
+  (document.getElementById("scene_p_topic") as HTMLInputElement).value = s.topic ?? "";
+  (document.getElementById("scene_p_color") as HTMLInputElement).value = s.color ?? "#3a86ff";
+  (document.getElementById("scene_p_scale") as HTMLInputElement).value = String(s.scale ?? 1.0);
+}
+
+function showSceneProperties() {
+  const propertiesGroup = document.getElementById("propertiesGroup");
+  if (propertiesGroup) {
+    propertiesGroup.style.display = "block";
+  }
+}
+
+function hideSceneProperties() {
+  const propertiesGroup = document.getElementById("propertiesGroup");
+  if (propertiesGroup) {
+    propertiesGroup.style.display = "none";
+  }
 }
 
 /* ---------------------------------------------
    Scene panel elements
 ---------------------------------------------- */
 const btnAdd   = document.getElementById("btnAdd")! as HTMLButtonElement;
-const btnBind  = document.getElementById("btnBind")! as HTMLButtonElement;
 // removed scene JSON save/load controls
 const catalog  = document.getElementById("catalog") as HTMLSelectElement;
 
@@ -73,15 +117,21 @@ const btnDel    = document.getElementById("btnDelete") as HTMLButtonElement | nu
 
 // environment upload
 const envFileInput     = document.getElementById("envFile") as HTMLInputElement;
+const envCatalogSelect = document.getElementById("envCatalog") as HTMLSelectElement;
+const btnAddFromCatalog = document.getElementById("btnAddFromCatalog") as HTMLButtonElement;
 
 // project panel
 const btnSaveProject   = document.getElementById("btnSaveProject") as HTMLButtonElement;
 const fileLoadProject = document.getElementById("fileLoadProject") as HTMLInputElement | null;
 
+// scene properties panel
+const sceneBtnBind = document.getElementById("scene_btnBind") as HTMLButtonElement;
+
 /* ---------------------------------------------
-   Selected id
+   Selected id and tool state
 ---------------------------------------------- */
 (window as any).selectedId = (window as any).selectedId ?? null;
+(window as any).isTransformMode = false; // برای تشخیص حالت ترنسفورم
 
 /* ---------------------------------------------
    Gizmo manager + tools
@@ -92,10 +142,152 @@ gizmos.positionGizmoEnabled = false;
 gizmos.rotationGizmoEnabled = false;
 gizmos.scaleGizmoEnabled    = false;
 
+// تنظیمات اضافی برای جلوگیری از تداخل با کنترل‌های دوربین
+gizmos.gizmos.positionGizmo?.onDragStartObservable.add(() => {
+  console.log("[DEBUG] Position gizmo drag started");
+  camera.detachControl();
+  isGizmoInteraction = true; // شروع تعامل با گیزمو
+});
+
+gizmos.gizmos.positionGizmo?.onDragEndObservable.add(() => {
+  console.log("[DEBUG] Position gizmo drag ended");
+  camera.attachControl(canvas, true);
+  // تاخیر بیشتر برای جلوگیری از تداخل با POINTERPICK
+  setTimeout(() => { 
+    isGizmoInteraction = false; 
+    wasInitialClickOnGizmo = false;
+    console.log("[DEBUG] Position gizmo interaction flag reset");
+  }, 300);
+});
+
+gizmos.gizmos.rotationGizmo?.onDragStartObservable.add(() => {
+  console.log("[DEBUG] Rotation gizmo drag started");
+  camera.detachControl();
+  isGizmoInteraction = true; // شروع تعامل با گیزمو
+});
+
+gizmos.gizmos.rotationGizmo?.onDragEndObservable.add(() => {
+  console.log("[DEBUG] Rotation gizmo drag ended");
+  camera.attachControl(canvas, true);
+  // تاخیر بیشتر برای جلوگیری از تداخل با POINTERPICK
+  setTimeout(() => { 
+    isGizmoInteraction = false; 
+    wasInitialClickOnGizmo = false;
+    console.log("[DEBUG] Rotation gizmo interaction flag reset");
+  }, 300);
+});
+
+gizmos.gizmos.scaleGizmo?.onDragStartObservable.add(() => {
+  console.log("[DEBUG] Scale gizmo drag started");
+  camera.detachControl();
+  isGizmoInteraction = true; // شروع تعامل با گیزمو
+});
+
+gizmos.gizmos.scaleGizmo?.onDragEndObservable.add(() => {
+  console.log("[DEBUG] Scale gizmo drag ended");
+  camera.attachControl(canvas, true);
+  // تاخیر بیشتر برای جلوگیری از تداخل با POINTERPICK
+  setTimeout(() => { 
+    isGizmoInteraction = false; 
+    wasInitialClickOnGizmo = false;
+    console.log("[DEBUG] Scale gizmo interaction flag reset");
+  }, 300);
+});
+
+// اضافه کردن event listener برای کلیک روی gizmo
+// Note: onPointerDownObservable ممکن است در نسخه جدید Babylon.js موجود نباشد
+// از onDragStartObservable استفاده می‌کنیم که قبلاً تعریف شده
+
 // Make gizmo manager accessible globally for environment cleanup
 (window as any).gizmoManager = gizmos;
+
+// متغیر برای ردیابی تعامل با گیزمو
+let isGizmoInteraction = false;
+// متغیر برای ردیابی اینکه آیا کلیک اولیه روی گیزمو بوده یا نه
+let wasInitialClickOnGizmo = false;
+
+// Make functions accessible globally for list interactions
+(window as any).selectSensorById = selectSensorById;
+(window as any).frameSensorById = frameSensorById;
+(window as any).selectEnvironmentById = selectEnvironmentById;
+(window as any).frameEnvironmentById = frameEnvironmentById;
+(window as any).addSelectionHighlight = addSelectionHighlight;
+(window as any).removeSelectionHighlight = removeSelectionHighlight;
+(window as any).enableSelect = enableSelect;
+(window as any).enableMove = enableMove;
+(window as any).enableRotate = enableRotate;
+(window as any).enableScale = enableScale;
+(window as any).frameNode = frameNode;
+(window as any).hidePopup = hidePopup;
+(window as any).fillScenePropertyPanel = fillScenePropertyPanel;
+(window as any).showSceneProperties = showSceneProperties;
+(window as any).hideSceneProperties = hideSceneProperties;
 if (gizmos.gizmos.rotationGizmo) {
   gizmos.gizmos.rotationGizmo.updateGizmoRotationToMatchAttachedMesh = false;
+}
+
+// تابع برای اضافه کردن بازخورد بصری به مدل‌های انتخاب شده
+function addSelectionHighlight(mesh: BABYLON.AbstractMesh) {
+  // حذف highlight قبلی
+  removeSelectionHighlight();
+  
+  // اعمال outline به mesh (روش صحیح Babylon.js)
+  mesh.outlineColor = new BABYLON.Color3(1, 1, 0); // رنگ زرد
+  mesh.outlineWidth = 0.02;
+  mesh.renderOutline = true;
+  
+  // ذخیره reference برای حذف بعدی
+  (window as any).selectedMeshOutline = mesh;
+}
+
+function removeSelectionHighlight() {
+  const mesh = (window as any).selectedMeshOutline;
+  if (mesh) {
+    mesh.renderOutline = false;
+    (window as any).selectedMeshOutline = null;
+  }
+}
+
+
+// تابع کمکی برای لغو کامل انتخاب
+function clearSelection() {
+  console.log("[DEBUG] clearSelection called");
+  // لغو انتخاب فعلی
+  (window as any).selectedId = null;
+  hidePopup();
+  removeSelectionHighlight();
+  
+  // مخفی کردن پنل scene properties
+  hideSceneProperties();
+  
+  // به‌روزرسانی لیست‌ها برای حذف highlight
+  updateSensorList();
+  updateEnvironmentList();
+  
+  // reset کردن flags
+  isGizmoInteraction = false;
+  wasInitialClickOnGizmo = false;
+  
+  gizmos.attachToMesh(null);
+  
+  // بررسی اینکه آیا ابزار ترنسفورم فعال است یا نه
+  const isMoveActive = btnMove?.getAttribute("aria-pressed") === "true";
+  const isRotateActive = btnRotate?.getAttribute("aria-pressed") === "true";
+  const isScaleActive = btnScale?.getAttribute("aria-pressed") === "true";
+  
+  // اگر هیچ ابزار ترنسفورمی فعال نیست، ابزار انتخاب را فعال کن
+  if (!isMoveActive && !isRotateActive && !isScaleActive) {
+    enableSelect();
+  } else {
+    // ابزار ترنسفورم فعال را حفظ کن
+    if (isMoveActive) {
+      enableMove();
+    } else if (isRotateActive) {
+      enableRotate();
+    } else if (isScaleActive) {
+      enableScale();
+    }
+  }
 }
 function setToolPressed(el?: HTMLButtonElement | null) {
   [btnSelect, btnMove, btnRotate, btnScale].forEach(b => {
@@ -111,46 +303,74 @@ function enableSelect() {
   gizmos.rotationGizmoEnabled = false;
   gizmos.scaleGizmoEnabled    = false;
   setToolPressed(btnSelect);
+  // حذف highlight در حالت انتخاب
+  removeSelectionHighlight();
+  // خروج از حالت ترنسفورم
+  (window as any).isTransformMode = false;
 }
 
 /** attach gizmo to selected sensor or active environment */
 function attachToCurrentSelection(): boolean {
   const id = (window as any).selectedId as string | null;
   if (id) {
-    const h = sensorHandles.get(id);
-    if (h) {
-      gizmos.attachToMesh(h);
-      return true;
+    // بررسی انتخاب سنسور
+    if (!id.startsWith('env_')) {
+      const h = sensorHandles.get(id);
+      if (h) {
+        gizmos.attachToMesh(h);
+        return true;
+      }
+    } else {
+      // انتخاب محیط
+      const envRoot = getActiveEnvRoot();
+      if (envRoot) {
+        // برای TransformNode، gizmo را به root attach می‌کنیم تا ترنسفورم‌ها روی root اعمال شوند
+        gizmos.attachToMesh(envRoot as any);
+        return true;
+      }
     }
-  }
-  const envRoot = getActiveEnvRoot();
-  if (envRoot && envRoot instanceof BABYLON.AbstractMesh) {
-    gizmos.attachToMesh(envRoot);
-    return true;
+  } else {
+    // اگر هیچ مدلی انتخاب نشده، گیزمو را از mesh جدا کن
+    gizmos.attachToMesh(null);
   }
   return false;
 }
 
 function enableMove() {
-  if (!attachToCurrentSelection()) return;
+  // فعال‌سازی ابزار حرکت
   gizmos.positionGizmoEnabled = true;
   gizmos.rotationGizmoEnabled = false;
   gizmos.scaleGizmoEnabled    = false;
   setToolPressed(btnMove);
+  // ورود به حالت ترنسفورم
+  (window as any).isTransformMode = true;
+  
+  // اگر مدلی انتخاب شده، گیزمو را attach کن
+  attachToCurrentSelection();
 }
 function enableRotate() {
-  if (!attachToCurrentSelection()) return;
+  // فعال‌سازی ابزار چرخش
   gizmos.positionGizmoEnabled = false;
   gizmos.rotationGizmoEnabled = true;
   gizmos.scaleGizmoEnabled    = false;
   setToolPressed(btnRotate);
+  // ورود به حالت ترنسفورم
+  (window as any).isTransformMode = true;
+  
+  // اگر مدلی انتخاب شده، گیزمو را attach کن
+  attachToCurrentSelection();
 }
 function enableScale() {
-  if (!attachToCurrentSelection()) return;
+  // فعال‌سازی ابزار مقیاس
   gizmos.positionGizmoEnabled = false;
   gizmos.rotationGizmoEnabled = false;
   gizmos.scaleGizmoEnabled    = true;
   setToolPressed(btnScale);
+  // ورود به حالت ترنسفورم
+  (window as any).isTransformMode = true;
+  
+  // اگر مدلی انتخاب شده، گیزمو را attach کن
+  attachToCurrentSelection();
 }
 
 /* ---------------------------------------------
@@ -159,6 +379,21 @@ function enableScale() {
 function persistPositionIfSensor() {
   const id = (window as any).selectedId as string | null;
   if (!id) return;
+  
+  if (id.startsWith('env_')) {
+    // ذخیره موقعیت محیط
+    const envId = id.replace('env_', '');
+    const env = envs.get(envId);
+    if (env && env.root) {
+      console.log("[Persistence] Environment position:", env.root.position);
+      console.log("[Persistence] Environment rotation:", env.root.rotation);
+      console.log("[Persistence] Environment scaling:", env.root.scaling);
+      // موقعیت محیط در env.root.position ذخیره می‌شود و هنگام save پروژه خوانده می‌شود
+    }
+    return;
+  }
+  
+  // ذخیره موقعیت سنسور
   const h = sensorHandles.get(id);
   const s = sensors.get(id);
   if (!h || !s) return;
@@ -168,6 +403,19 @@ function persistPositionIfSensor() {
 function persistScaleIfSensor() {
   const id = (window as any).selectedId as string | null;
   if (!id) return;
+  
+  if (id.startsWith('env_')) {
+    // ذخیره مقیاس محیط
+    const envId = id.replace('env_', '');
+    const env = envs.get(envId);
+    if (env && env.root) {
+      console.log("[Persistence] Environment scale:", env.root.scaling);
+      // مقیاس محیط در env.root.scaling ذخیره می‌شود و هنگام save پروژه خوانده می‌شود
+    }
+    return;
+  }
+  
+  // ذخیره مقیاس سنسور
   const h = sensorHandles.get(id);
   const s = sensors.get(id);
   if (!h || !s) return;
@@ -180,6 +428,21 @@ function persistScaleIfSensor() {
 function persistRotationIfSensor() {
   const id = (window as any).selectedId as string | null;
   if (!id) return;
+  
+  if (id.startsWith('env_')) {
+    // ذخیره چرخش محیط
+    const envId = id.replace('env_', '');
+    const env = envs.get(envId);
+    if (env && env.root) {
+      const r = (env.root.rotationQuaternion ? env.root.rotationQuaternion.toEulerAngles() : env.root.rotation);
+      const toDeg = (rad: number) => rad * 180 / Math.PI;
+      console.log("[Persistence] Environment rotation:", { x: toDeg(r.x), y: toDeg(r.y), z: toDeg(r.z) });
+      // چرخش محیط در env.root.rotation ذخیره می‌شود و هنگام save پروژه خوانده می‌شود
+    }
+    return;
+  }
+  
+  // ذخیره چرخش سنسور
   const h = sensorHandles.get(id);
   const s = sensors.get(id);
   if (!h || !s) return;
@@ -213,35 +476,66 @@ btnAdd.addEventListener("click", async () => {
     scale: 1.0,
   };
   sensors.set(id, s);
-  createSensorHandle(s);
+  const handle = createSensorHandle(s);
+  
+  // انتخاب سنسور جدید
   (window as any).selectedId = id;
-  fillPropertyPanel(s);
+  
+  
+  // پر کردن پنل scene properties
+  fillScenePropertyPanel(s);
+  showSceneProperties();
+  
+  // نمایش popup
+  showPopupFor(s.deviceId, handle);
+  
+  // اضافه کردن highlight بصری
+  addSelectionHighlight(handle);
+  
+  // به‌روزرسانی لیست سنسورها و لغو انتخاب محیط‌ها
   updateSensorList();
+  updateEnvironmentList();
 
+  // فعال‌سازی ابزار ترنسفورم در صورت انتخاب
   if (btnMove?.getAttribute("aria-pressed") === "true") enableMove();
   else if (btnRotate?.getAttribute("aria-pressed") === "true") enableRotate();
   else if (btnScale?.getAttribute("aria-pressed") === "true") enableScale();
+  else {
+    // اگر هیچ ابزار ترنسفورمی انتخاب نشده، به حالت انتخاب برگرد
+    enableSelect();
+  }
+  
+  console.log("[DEBUG] New sensor created and selected:", id);
 });
 
-btnBind.addEventListener("click", () => {
+
+// Scene Properties Apply Changes
+sceneBtnBind.addEventListener("click", () => {
   const id = (window as any).selectedId as string | null;
-  if (!id) return;
-  const s = sensors.get(id)!;
-  s.label    = (document.getElementById("p_label")  as HTMLInputElement).value || s.label;
-  s.deviceId = (document.getElementById("p_device") as HTMLInputElement).value || s.deviceId;
-  s.topic    = (document.getElementById("p_topic")  as HTMLInputElement).value || undefined;
-  s.color    = (document.getElementById("p_color")  as HTMLInputElement).value || s.color;
-  s.scale    = Number((document.getElementById("p_scale") as HTMLInputElement).value || s.scale || 1.0);
+  if (!id || id.startsWith('env_')) return; // Only for sensors
+  
+  const s = sensors.get(id);
+  if (!s) return;
+  
+  s.label    = (document.getElementById("scene_p_label")  as HTMLInputElement).value || s.label;
+  s.deviceId = (document.getElementById("scene_p_device") as HTMLInputElement).value || s.deviceId;
+  s.topic    = (document.getElementById("scene_p_topic")  as HTMLInputElement).value || undefined;
+  s.color    = (document.getElementById("scene_p_color")  as HTMLInputElement).value || s.color;
+  s.scale    = Number((document.getElementById("scene_p_scale") as HTMLInputElement).value || s.scale || 1.0);
 
   const h = sensorHandles.get(id)!;
   h.scaling.setAll((s.scale ?? 1.0) * GLB_WORLD_SCALE);
-  // tintHierarchy(h, s.color ?? palette[s.type]); // Removed to preserve original GLB materials
   (h as any).metadata.deviceId = s.deviceId;
   
   // ذخیره‌سازی دستی ترنسفورم‌ها
   persistPositionIfSensor();
   persistScaleIfSensor();
   persistRotationIfSensor();
+  
+  // به‌روزرسانی لیست سنسورها
+  updateSensorList();
+  
+  console.log("[DEBUG] Scene properties applied for sensor:", id);
 });
 
 // scene JSON save/load removed per requirement
@@ -257,18 +551,22 @@ btnDel   ?.addEventListener("click", () => {
   const id = (window as any).selectedId as string | null;
 
   if (id) {
-    // delete sensor
-    const h = sensorHandles.get(id)!;
-    try { h.getChildMeshes().forEach(c => c.dispose()); } catch {}
-    try { h.dispose(); } catch {}
-    sensorHandles.delete(id);
-    sensors.delete(id);
-    (window as any).selectedId = null;
-    hidePopup();
-    enableSelect();
-    updateSensorList();
+    if (id.startsWith('env_')) {
+      // حذف محیط انتخاب شده
+      removeActiveEnvironment();
+      clearSelection();
+    } else {
+      // حذف سنسور
+      const h = sensorHandles.get(id)!;
+      try { h.getChildMeshes().forEach(c => c.dispose()); } catch {}
+      try { h.dispose(); } catch {}
+      sensorHandles.delete(id);
+      sensors.delete(id);
+      clearSelection();
+      updateSensorList();
+    }
   } else {
-    // delete active environment
+    // حذف محیط فعال (در صورت عدم انتخاب)
     removeActiveEnvironment();
     enableSelect();
   }
@@ -287,6 +585,35 @@ envFileInput?.addEventListener("change", async () => {
     if (btnMove?.getAttribute("aria-pressed") === "true") enableMove();
     else if (btnRotate?.getAttribute("aria-pressed") === "true") enableRotate();
     else if (btnScale?.getAttribute("aria-pressed") === "true") enableScale();
+  }
+});
+
+// Environment Catalog Add Button
+btnAddFromCatalog?.addEventListener("click", async () => {
+  const selectedEnvId = envCatalogSelect?.value;
+  if (!selectedEnvId) {
+    alert("Please select an environment from the catalog.");
+    return;
+  }
+
+  try {
+    console.log(`[Environment Catalog] Adding environment: ${selectedEnvId}`);
+    await addEnvironmentFromCatalog(selectedEnvId);
+    
+    // Reset selection
+    envCatalogSelect.value = "";
+    
+    // Activate transform tools if needed
+    if (!(window as any).selectedId) {
+      if (btnMove?.getAttribute("aria-pressed") === "true") enableMove();
+      else if (btnRotate?.getAttribute("aria-pressed") === "true") enableRotate();
+      else if (btnScale?.getAttribute("aria-pressed") === "true") enableScale();
+    }
+    
+    console.log(`[Environment Catalog] Successfully added environment: ${selectedEnvId}`);
+  } catch (error: any) {
+    console.error("[Environment Catalog] Failed to add environment:", error);
+    alert(`Failed to add environment: ${error.message}`);
   }
 });
 
@@ -353,36 +680,122 @@ function frameNode(node: BABYLON.Node, pad = 0.4, maxRadius = 30) {
 /* ---------------------------------------------
    Picking: click select + double-click frame
 ---------------------------------------------- */
+
+
+// Event listener اصلی برای POINTERPICK
 scene.onPointerObservable.add((pi) => {
   if (pi.type !== BABYLON.PointerEventTypes.POINTERPICK) return;
   const pick = pi.pickInfo;
-  if (!pick?.hit || !pick.pickedMesh) return;
-
-  const r = resolveHandle(pick.pickedMesh);
-  if (r) {
-    (window as any).selectedId = r.sensorId;
-    const s = sensors.get(r.sensorId)!;
-    fillPropertyPanel(s);
-    showPopupFor(r.deviceId || s.deviceId, r.handle);
-
-    if (btnMove?.getAttribute("aria-pressed") === "true") enableMove();
-    else if (btnRotate?.getAttribute("aria-pressed") === "true") enableRotate();
-    else if (btnScale?.getAttribute("aria-pressed") === "true") enableScale();
+  
+  console.log("[DEBUG] POINTERPICK event - isGizmoInteraction:", isGizmoInteraction, "wasInitialClickOnGizmo:", wasInitialClickOnGizmo);
+  console.log("[DEBUG] POINTERPICK - pick.hit:", pick?.hit, "pickedMesh:", pick?.pickedMesh?.name);
+  
+  // اگر در حال تعامل با گیزمو هستیم، انتخاب را لغو نکن
+  if (isGizmoInteraction) {
+    console.log("[DEBUG] POINTERPICK ignored due to gizmo interaction");
+    return;
+  }
+  
+  // اگر کلیک روی gizmo نبوده، flag را reset کن
+  if (pick?.pickedMesh && !pick.pickedMesh.name.includes("gizmo") && !pick.pickedMesh.name.includes("Gizmo")) {
+    wasInitialClickOnGizmo = false;
+  }
+  
+  // اگر روی فضای خالی کلیک شده
+  if (!pick?.hit || !pick.pickedMesh) {
+    // اگر کلیک اولیه روی گیزمو نبوده، انتخاب را لغو کن
+    if (!wasInitialClickOnGizmo) {
+      console.log("[DEBUG] POINTERPICK on empty space - clearing selection (not on gizmo)");
+      clearSelection();
+    } else {
+      console.log("[DEBUG] POINTERPICK on empty space - keeping selection (was on gizmo)");
+    }
+    return;
+  }
+  
+  // اگر روی ground یا grid کلیک شده، انتخاب را لغو کن
+  if (pick.pickedMesh && (pick.pickedMesh.name === "ground" || pick.pickedMesh.name === "grid")) {
+    clearSelection();
+    return;
+  }
+  
+  // اگر روی gizmo کلیک شده، انتخاب را لغو نکن
+  if (pick.pickedMesh && (pick.pickedMesh.name.includes("gizmo") || pick.pickedMesh.name.includes("Gizmo"))) {
     return;
   }
 
-  const envId = resolveEnvFromMesh(pick.pickedMesh);
-  (window as any).selectedId = null;
-  hidePopup();
+  // ابتدا بررسی سنسور
+  const r = resolveHandle(pick.pickedMesh);
+  if (r) {
+    // انتخاب سنسور
+    (window as any).selectedId = r.sensorId;
+    const s = sensors.get(r.sensorId)!;
+    
+    
+    // پر کردن پنل scene properties
+    fillScenePropertyPanel(s);
+    showSceneProperties();
+    
+    // نمایش popup
+    showPopupFor(r.deviceId || s.deviceId, r.handle);
+    
+    // اضافه کردن highlight بصری
+    addSelectionHighlight(r.handle);
 
-  if (envId) {
-    setActiveEnvironment(envId);
+    // به‌روزرسانی لیست‌ها برای highlight کردن آیتم انتخاب شده
+    updateSensorList();
+    updateEnvironmentList();
+
+    // فعال‌سازی ابزار ترنسفورم در صورت انتخاب
     if (btnMove?.getAttribute("aria-pressed") === "true") enableMove();
     else if (btnRotate?.getAttribute("aria-pressed") === "true") enableRotate();
     else if (btnScale?.getAttribute("aria-pressed") === "true") enableScale();
-    else enableSelect();
+    else {
+      // اگر هیچ ابزار ترنسفورمی انتخاب نشده، به حالت انتخاب برگرد
+      enableSelect();
+    }
+    
+    console.log("[DEBUG] Sensor selected in 3D scene:", r.sensorId);
+    return;
+  }
+
+  // سپس بررسی محیط
+  const envId = resolveEnvFromMesh(pick.pickedMesh);
+  if (envId) {
+    // انتخاب محیط
+    (window as any).selectedId = `env_${envId}`; // شناسه منحصر به فرد برای محیط
+    setActiveEnvironment(envId);
+    hidePopup(); // مخفی کردن popup سنسور
+    
+    // مخفی کردن پنل scene properties
+    hideSceneProperties();
+    
+    // اضافه کردن highlight بصری به محیط
+    const envRoot = getActiveEnvRoot();
+    if (envRoot) {
+      // برای TransformNode، highlight را به اولین mesh فرزند اعمال می‌کنیم
+      const firstMesh = envRoot.getChildMeshes()[0];
+      if (firstMesh) {
+        addSelectionHighlight(firstMesh);
+      }
+    }
+
+    // به‌روزرسانی لیست‌ها برای highlight کردن آیتم انتخاب شده
+    updateSensorList();
+    updateEnvironmentList();
+
+    // فعال‌سازی ابزار ترنسفورم در صورت انتخاب
+    if (btnMove?.getAttribute("aria-pressed") === "true") enableMove();
+    else if (btnRotate?.getAttribute("aria-pressed") === "true") enableRotate();
+    else if (btnScale?.getAttribute("aria-pressed") === "true") enableScale();
+    else {
+      // اگر هیچ ابزار ترنسفورمی انتخاب نشده، به حالت انتخاب برگرد
+      enableSelect();
+    }
+    
   } else {
-    enableSelect();
+    // هیچ چیز انتخاب نشده - بازگشت به حالت انتخاب
+    clearSelection();
   }
 });
 
@@ -391,25 +804,102 @@ scene.onPointerObservable.add((pi) => {
   const pick = pi.pickInfo;
   if (!pick?.hit || !pick.pickedMesh) return;
 
-  const r = resolveHandle(pick.pickedMesh);
-  if (r) { frameNode(r.handle); return; }
+  console.log("[DEBUG] POINTERDOUBLETAP - pick.hit:", pick?.hit, "pickedMesh:", pick?.pickedMesh?.name);
 
+  // بررسی سنسور
+  const r = resolveHandle(pick.pickedMesh);
+  if (r) { 
+    console.log("[DEBUG] Double-click on sensor - framing:", r.sensorId);
+    frameNode(r.handle); 
+    return; 
+  }
+
+  // بررسی محیط
   const envId = resolveEnvFromMesh(pick.pickedMesh);
   if (envId) {
+    console.log("[DEBUG] Double-click on environment - framing:", envId);
     setActiveEnvironment(envId);
     const envRoot = getActiveEnvRoot();
     if (envRoot) frameNode(envRoot);
   }
 });
 
+// Event listener برای تشخیص کلیک روی فضای خالی
+scene.onPointerObservable.add((pi) => {
+  if (pi.type !== BABYLON.PointerEventTypes.POINTERDOWN) return;
+  const pick = pi.pickInfo;
+  
+  console.log("[DEBUG] POINTERDOWN event - isGizmoInteraction:", isGizmoInteraction, "wasInitialClickOnGizmo:", wasInitialClickOnGizmo);
+  console.log("[DEBUG] POINTERDOWN - pick.hit:", pick?.hit, "pickedMesh:", pick?.pickedMesh?.name);
+  
+  // اگر در حال تعامل با گیزمو هستیم، کاری نکن
+  if (isGizmoInteraction) {
+    console.log("[DEBUG] POINTERDOWN ignored due to gizmo interaction");
+    return;
+  }
+  
+  // اگر کلیک روی gizmo نبوده، flag را reset کن
+  if (pick?.pickedMesh && !pick.pickedMesh.name.includes("gizmo") && !pick.pickedMesh.name.includes("Gizmo")) {
+    wasInitialClickOnGizmo = false;
+  }
+  
+  // اگر روی فضای خالی کلیک شده
+  if (!pick?.hit || !pick.pickedMesh) {
+    // اگر کلیک اولیه روی گیزمو نبوده، انتخاب را لغو کن
+    if (!wasInitialClickOnGizmo) {
+      console.log("[DEBUG] POINTERDOWN on empty space - clearing selection (not on gizmo)");
+      clearSelection();
+    } else {
+      console.log("[DEBUG] POINTERDOWN on empty space - keeping selection (was on gizmo)");
+    }
+    return;
+  }
+});
+
 /* ---------------------------------------------
-   MQTT buttons
+   Keyboard shortcuts
 ---------------------------------------------- */
-wireMqttButtons();
+document.addEventListener("keydown", (event) => {
+  // کلید Escape برای لغو انتخاب
+  if (event.key === "Escape") {
+    clearSelection();
+  }
+});
+
+// Event listener اضافی برای canvas (پشتیبان) - حذف شده چون با gizmo interaction تداخل می‌کند
+// const canvas = scene.getEngine().getRenderingCanvas();
+// if (canvas) {
+//   canvas.addEventListener("click", (event) => {
+//     // اگر در حال تعامل با گیزمو هستیم، انتخاب را لغو نکن
+//     if (isGizmoInteraction) {
+//       console.log("[DEBUG] Canvas click ignored due to gizmo interaction");
+//       return;
+//     }
+//     
+//     const pick = scene.pick(event.clientX, event.clientY);
+//     
+//     if (!pick?.hit || !pick.pickedMesh) {
+//       console.log("[DEBUG] Canvas click on empty space - clearing selection");
+//       clearSelection();
+//     }
+//   });
+// }
+
+
+/* ---------------------------------------------
+   API Connection buttons
+---------------------------------------------- */
+wireApiButtons();
 
 /* ---------------------------------------------
    Initialize UI
 ---------------------------------------------- */
+// Initialize environment catalog
+populateEnvironmentCatalog();
+
 // Initialize environment and sensor lists
 updateEnvironmentList();
 updateSensorList();
+
+// Initialize sensor history UI
+sensorHistoryUI.initialize();

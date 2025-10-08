@@ -2,10 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Digital Twin (Babylon + MQTT)</title>
+    <title>Digital Twin (Babylon + API)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="./styles.css" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script type="module" crossorigin src="/assets/index-B8mUmUBm.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BhfDO5NW.css">
   </head>
   <body>
     
@@ -45,17 +46,16 @@
       </div>
 
       <div class="status-line">
-        <div id="connDot" class="dot" title="MQTT status"></div>
+        <div id="connDot" class="dot" title="API status"></div>
         <div>
           <span id="status">disconnected</span> •
-          <small>Topic <code id="topicChip">building/demo/#</code></small>
+          <small>Interval <code id="topicChip">5000ms</code></small>
         </div>
       </div>
 
       <div class="tabs">
         <div class="tab" data-tab="project">Project</div>
         <div class="tab active" data-tab="scene">Scene</div>
-        <div class="tab" data-tab="props">Properties</div>
         <div class="tab" data-tab="connection">Connection</div>
       </div>
 
@@ -70,12 +70,26 @@
             </div>
             <div class="head-title">
               <div class="t1">Environment</div>
-              <div class="t2">GLB File</div>
+              <div class="t2">GLB File & Catalog</div>
             </div>
           </div>
 
+          <!-- Environment Catalog -->
           <div class="row">
-            <label>Environment (GLB)</label>
+            <label>Environment Catalog</label>
+            <div class="select-line">
+              <select id="envCatalog">
+                <option value="">Select from catalog...</option>
+              </select>
+              <button id="btnAddFromCatalog" class="btn solid">
+                <img src="/icons/add.svg" alt="" class="icon" /> Add
+              </button>
+            </div>
+          </div>
+
+          <!-- Custom GLB Upload -->
+          <div class="row">
+            <label>Custom Environment (GLB)</label>
             <label class="file-uploader">
               <input id="envFile" type="file" accept=".glb" />
               <span class="file-chip" data-default="Choose File">Choose File</span>
@@ -107,11 +121,11 @@
             <label>Sensor Catalog</label>
             <div class="select-line">
               <select id="catalog">
-                <option value="temperature">Temperature</option>
-                <option value="humidity">Humidity</option>
-                <option value="co2">CO₂</option>
-                <option value="light">Light</option>
-                <option value="solar">Solar</option>
+                <option value="temperature" data-icon="/icons/temperature.svg">🌡️ Temperature</option>
+                <option value="humidity" data-icon="/icons/humidity.svg">💧 Humidity</option>
+                <option value="co2" data-icon="/icons/co2.svg">🌫️ CO₂</option>
+                <option value="light" data-icon="/icons/light.svg">💡 Light</option>
+                <option value="solar" data-icon="/icons/solar.svg">☀️ Solar</option>
               </select>
               <button id="btnAdd" class="btn solid">
                 <img src="/icons/add.svg" alt="" class="icon" /> Add Sensor
@@ -124,6 +138,49 @@
             <div id="sensorList" class="list">
               <div class="list-empty">No sensors loaded</div>
             </div>
+          </div>
+        </div>
+
+        <!-- 3) Properties Section -->
+        <div class="group" id="propertiesGroup" style="display: none;">
+          <div class="group-head">
+            <div class="head-icon">
+              <img src="/icons/bind.svg" alt="" />
+            </div>
+            <div class="head-title">
+              <div class="t1">Properties</div>
+              <div class="t2">Edit Selected</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <label>Label</label>
+            <input id="scene_p_label" type="text" placeholder="e.g., Temp – Room 101"/>
+          </div>
+          <div class="row inline">
+            <div>
+              <label>Device ID</label>
+              <input id="scene_p_device" type="text" placeholder="e.g., tmp-101"/>
+            </div>
+            <div>
+              <label>Topic (optional)</label>
+              <input id="scene_p_topic" type="text" placeholder="building/demo/room-1/temperature"/>
+            </div>
+          </div>
+          <div class="row inline">
+            <div>
+              <label>Color</label>
+              <input id="scene_p_color" type="color" value="#3a86ff"/>
+            </div>
+            <div>
+              <label>Scale</label>
+              <input id="scene_p_scale" type="number" step="0.1" value="1.0"/>
+            </div>
+          </div>
+          <div class="row">
+            <button id="scene_btnBind" class="btn primary full">
+              <img src="/icons/bind.svg" alt="" class="icon" /> Apply Changes
+            </button>
           </div>
         </div>
 
@@ -159,58 +216,16 @@
         </div>
       </section>
 
-      <!-- =================== PROPS =================== -->
-      <section id="panel-props" class="panel">
-        <div class="row">
-          <label>Label</label>
-          <input id="p_label" type="text" placeholder="e.g., Temp – Room 101"/>
-        </div>
-        <div class="row inline">
-          <div>
-            <label>Device ID</label>
-            <input id="p_device" type="text" placeholder="e.g., tmp-101"/>
-          </div>
-          <div>
-            <label>Topic (optional)</label>
-            <input id="p_topic" type="text" placeholder="building/demo/room-1/temperature"/>
-          </div>
-        </div>
-        <div class="row inline">
-          <div>
-            <label>Color</label>
-            <input id="p_color" type="color" value="#3a86ff"/>
-          </div>
-          <div>
-            <label>Scale</label>
-            <input id="p_scale" type="number" step="0.1" value="1.0"/>
-          </div>
-        </div>
-        <div class="row">
-          <button id="btnBind" class="btn primary full">
-            <img src="/icons/bind.svg" alt="" class="icon" /> Bind / Apply
-          </button>
-        </div>
-      </section>
 
       <!-- ================= CONNECTION ================ -->
       <section id="panel-connection" class="panel">
         <div class="row">
-          <label>Broker URL</label>
-          <input id="brokerUrl" type="text" value="ws://localhost:9001" placeholder="ws://host:port or wss://host:port/mqtt"/>
+          <label>Server URL</label>
+          <input id="brokerUrl" type="text" value="https://digitaltwin-sensorplus-1.onrender.com" placeholder="https://digitaltwin-sensorplus-1.onrender.com"/>
         </div>
         <div class="row">
-          <label>Topic</label>
-          <input id="brokerTopic" type="text" value="building/demo/#"/>
-        </div>
-        <div class="row inline">
-          <div>
-            <label>User (optional)</label>
-            <input id="brokerUser" type="text"/>
-          </div>
-          <div>
-            <label>Password (optional)</label>
-            <input id="brokerPass" type="password"/>
-          </div>
+          <label>Polling Interval (ms)</label>
+          <input id="brokerTopic" type="number" value="5000" placeholder="5000"/>
         </div>
         <div class="row inline">
           <button id="btnReconnect" class="btn primary">
@@ -227,17 +242,15 @@
       </section>
 
       <div class="drawer-footer">
-        <div class="footer-broker">Broker:<code id="ws">ws://localhost:9001</code></div>
+        <div class="footer-broker">Server:<code id="ws">https://digitaltwin-sensorplus-1.onrender.com</code></div>
       </div>
     </aside>
 
     <!-- 3D host -->
     <div id="app"></div>
 
-    <!-- MQTT -->
-    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <!-- API Client (no external dependencies needed) -->
     <!-- App entry -->
-    <script type="module" src="/src/main.ts"></script>
 
     <!-- Drawer/Tabs/Status + فایل‌نام آپلودر -->
     <script>
@@ -248,7 +261,6 @@
       const panels = {
         project: document.getElementById('panel-project'),
         scene: document.getElementById('panel-scene'),
-        props: document.getElementById('panel-props'),
         connection: document.getElementById('panel-connection'),
       };
       function setActive(tabKey){
@@ -296,6 +308,8 @@
           chip.textContent = chip.getAttribute('data-default') || 'Choose File';
         });
       });
+
+      // حذف JavaScript برای نمایش نمادها در dropdown
     </script>
   </body>
 </html>

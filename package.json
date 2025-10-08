@@ -6,9 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "node server.js",
+    "dev:full": "concurrently \"npm run dev\" \"npm run server\"",
+    "start": "npm run build && npm run server"
   },
   "devDependencies": {
+    "concurrently": "^8.2.2",
     "typescript": "~5.8.3",
     "vite": "^7.1.2"
   },
@@ -16,7 +20,9 @@
     "@babylonjs/core": "^8.26.0",
     "@babylonjs/loaders": "^8.26.0",
     "@babylonjs/materials": "^8.26.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
     "jszip": "^3.10.1",
-    "mqtt": "^5.14.0"
+    "mysql2": "^3.15.2"
   }
 }
