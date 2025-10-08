@@ -24,6 +24,9 @@ import {
   selectSensorById,
   frameSensorById,
   popupDevId,
+  testTooltip,
+  testAllData,
+  testPopup,
 } from "./sensors";
 
 // env (multi-environment API)
@@ -43,6 +46,7 @@ import {
 
 // api client
 import { wireApiButtons } from "./api-ui";
+import { apiClient } from "./api-client";
 
 // sensor history
 import { sensorHistoryUI } from "./sensor-history-ui";
@@ -921,3 +925,13 @@ updateSensorList();
 
 // Initialize sensor history UI
 sensorHistoryUI.initialize();
+
+// اضافه کردن توابع تست به window برای استفاده از console
+(window as any).testTooltip = testTooltip;
+(window as any).testAllData = testAllData;
+(window as any).testPopup = testPopup;
+(window as any).getPollingStatus = () => apiClient.getPollingStatus();
+(window as any).restartPolling = () => apiClient.restartPolling();
+(window as any).forceConnect = () => apiClient.forceConnect();
+(window as any).testApi = () => apiClient.testApiConnection();
+

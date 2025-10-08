@@ -37,7 +37,7 @@ class DigitalTwinApiClient {
   private pollingInterval: number | null = null;
   private pollingIntervalMs: number = 5000; // 5 seconds as per guide
   private retryCount: number = 0;
-  private maxRetries: number = 3;
+  private maxRetries: number = 10;
   // private retryDelay: number = 2000; // 2 seconds - unused for now
   private corsProxies: string[] = [
     'https://api.allorigins.win/raw?url=',
@@ -56,6 +56,8 @@ class DigitalTwinApiClient {
   private convertToReading(deviceData: DeviceData): Reading {
     const timestamp = new Date(deviceData.timestamp).getTime();
     
+    console.log(`[API] Converting device data for ${deviceData.device_id}:`, deviceData);
+    
     if (deviceData.kind === "light") {
       // For light sensors, value is in lux, not watts
       // Determine on/off status based on lux value (if > 0, light is on)
@@ -66,14 +68,16 @@ class DigitalTwinApiClient {
       // Typical LED light: ~100 lux per watt
       const estimatedPowerW = isOn ? Math.max(1, luxValue / 100) : 0;
       
-      return {
+      const reading = {
         deviceId: deviceData.device_id,
-        kind: "light",
+        kind: "light" as const,
         roomId: deviceData.room_id,
         ts: timestamp,
         on: isOn,
         powerW: estimatedPowerW
       };
+      console.log(`[API] Converted light reading:`, reading);
+      return reading;
     }
     
     if (deviceData.kind === "solar") {
@@ -84,18 +88,20 @@ class DigitalTwinApiClient {
       const estimatedVoltage = 20.0; // Typical solar panel voltage
       const estimatedCurrent = powerW > 0 ? powerW / estimatedVoltage : 0;
       
-      return {
+      const reading = {
         deviceId: deviceData.device_id,
-        kind: "solar",
+        kind: "solar" as const,
         ts: timestamp,
         powerW: powerW,
         voltage: deviceData.voltage_volts || estimatedVoltage,
         current: deviceData.current_amps || estimatedCurrent
       };
+      console.log(`[API] Converted solar reading:`, reading);
+      return reading;
     }
     
     // For temperature, humidity, co2
-    return {
+    const reading = {
       deviceId: deviceData.device_id,
       kind: deviceData.kind as "temperature" | "humidity" | "co2",
       roomId: deviceData.room_id,
@@ -103,6 +109,8 @@ class DigitalTwinApiClient {
       value: deviceData.value || 0,
       unit: deviceData.unit || ""
     };
+    console.log(`[API] Converted sensor reading:`, reading);
+    return reading;
   }
 
   /**
@@ -111,7 +119,38 @@ class DigitalTwinApiClient {
   private async fetchSensorData(): Promise<ApiResponse | null> {
     const targetUrl = `${this.baseUrl}/api/data`;
     
-    // Use CORS proxy directly (skip direct connection to avoid CORS errors)
+    console.log(`[API] Fetching data from: ${targetUrl} at ${new Date().toLocaleTimeString()}`);
+    
+    // Try direct connection first (for development)
+    try {
+      console.log('[API] Trying direct connection...');
+      const response = await fetch(targetUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(30000) // 30 second timeout
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data: ApiResponse = await response.json();
+      
+      if (!data.success) {
+        throw new Error('API returned success: false');
+      }
+
+      console.log(`[API] Direct connection successful! Received ${Object.keys(data.devices).length} devices`);
+      return data;
+      
+    } catch (error) {
+      console.warn('[API] Direct connection failed:', error);
+      console.log('[API] Trying CORS proxies...');
+    }
+    
+    // Use CORS proxy as fallback
     for (let i = 0; i < this.corsProxies.length; i++) {
       const proxyIndex = (this.currentProxyIndex + i) % this.corsProxies.length;
       const proxyUrl = this.corsProxies[proxyIndex];
@@ -125,12 +164,14 @@ class DigitalTwinApiClient {
           fullUrl = `${proxyUrl}${targetUrl}`;
         }
         
+        console.log(`[API] Trying proxy ${proxyIndex + 1}: ${proxyUrl}`);
+        
         const response = await fetch(fullUrl, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
           },
-          signal: AbortSignal.timeout(15000) // 15 second timeout (proxy adds latency)
+          signal: AbortSignal.timeout(30000) // 30 second timeout (proxy adds latency)
         });
 
         if (!response.ok) {
@@ -143,6 +184,7 @@ class DigitalTwinApiClient {
           throw new Error('API returned success: false');
         }
 
+        console.log(`[API] Proxy ${proxyIndex + 1} successful!`);
         // Update current proxy index on success
         this.currentProxyIndex = proxyIndex;
         return data;
@@ -165,16 +207,21 @@ class DigitalTwinApiClient {
   private processSensorData(data: ApiResponse): void {
     const deviceCount = Object.keys(data.devices).length;
     console.log(`[API] Processing data for ${deviceCount} devices`);
+    console.log(`[API] Raw API data:`, data);
     
     // Update latest readings
     for (const [deviceId, deviceData] of Object.entries(data.devices)) {
       const reading = this.convertToReading(deviceData);
+      const oldReading = latestByDev.get(deviceId);
       latestByDev.set(deviceId, reading);
       
       // Debug: نمایش به‌روزرسانی داده‌ها
       console.log(`[API] Updated reading for device: ${deviceId}`, {
-        reading: reading,
-        timestamp: new Date(reading.ts).toLocaleTimeString()
+        rawData: deviceData,
+        convertedReading: reading,
+        timestamp: new Date(reading.ts).toLocaleTimeString(),
+        oldTimestamp: oldReading ? new Date(oldReading.ts).toLocaleTimeString() : 'none',
+        dataChanged: !oldReading || oldReading.ts !== reading.ts
       });
       
       // Find matching sensor in scene
@@ -194,6 +241,7 @@ class DigitalTwinApiClient {
         }
       }
     }
+    
   }
 
   /**
@@ -236,19 +284,38 @@ class DigitalTwinApiClient {
       clearInterval(this.pollingInterval);
     }
 
+    console.log(`[API] Starting polling every ${this.pollingIntervalMs}ms`);
+
     this.pollingInterval = window.setInterval(async () => {
-      const data = await this.fetchSensorData();
+      console.log(`[API] Polling attempt at ${new Date().toLocaleTimeString()}`);
       
-      if (data) {
-        this.processSensorData(data);
-        this.retryCount = 0; // Reset retry count on success
-      } else {
+      try {
+        const data = await this.fetchSensorData();
+        
+        if (data) {
+          console.log(`[API] Polling successful - received data for ${Object.keys(data.devices).length} devices`);
+          this.processSensorData(data);
+          this.retryCount = 0; // Reset retry count on success
+        } else {
+          this.retryCount++;
+          console.warn(`[API] Polling failed, retry ${this.retryCount}/${this.maxRetries}`);
+          
+          if (this.retryCount >= this.maxRetries) {
+            console.error('[API] Max retries reached, but continuing polling...');
+            this.setStatus('connection issues');
+            // Don't disconnect, just continue trying
+            this.retryCount = 0; // Reset retry count to continue
+          }
+        }
+      } catch (error) {
         this.retryCount++;
-        console.warn(`[API] Polling failed, retry ${this.retryCount}/${this.maxRetries}`);
+        console.error(`[API] Polling error, retry ${this.retryCount}/${this.maxRetries}:`, error);
         
         if (this.retryCount >= this.maxRetries) {
-          this.setStatus('connection lost');
-          this.disconnect();
+          console.error('[API] Max retries reached, but continuing polling...');
+          this.setStatus('connection issues');
+          // Don't disconnect, just continue trying
+          this.retryCount = 0; // Reset retry count to continue
         }
       }
     }, this.pollingIntervalMs);
@@ -331,6 +398,62 @@ class DigitalTwinApiClient {
   public getLatestReading(deviceId: string): Reading | undefined {
     return latestByDev.get(deviceId);
   }
+
+  /**
+   * Test API connection manually
+   */
+  public async testApiConnection(): Promise<void> {
+    console.log('[API Test] Testing API connection...');
+    try {
+      const data = await this.fetchSensorData();
+      if (data) {
+        console.log('[API Test] API connection successful!');
+        console.log('[API Test] Received data:', data);
+        this.processSensorData(data);
+      } else {
+        console.log('[API Test] API connection failed - no data received');
+      }
+    } catch (error) {
+      console.error('[API Test] API connection failed:', error);
+    }
+  }
+
+  /**
+   * Get polling status
+   */
+  public getPollingStatus(): { isConnected: boolean; pollingInterval: number; hasInterval: boolean; retryCount: number; maxRetries: number } {
+    return {
+      isConnected: this.isConnected,
+      pollingInterval: this.pollingIntervalMs,
+      hasInterval: this.pollingInterval !== null,
+      retryCount: this.retryCount,
+      maxRetries: this.maxRetries
+    };
+  }
+
+  /**
+   * Force restart polling
+   */
+  public restartPolling(): void {
+    console.log('[API] Restarting polling...');
+    this.retryCount = 0; // Reset retry count
+    if (this.isConnected) {
+      this.startPolling();
+    } else {
+      console.warn('[API] Cannot restart polling - not connected');
+    }
+  }
+
+  /**
+   * Force connect and start polling
+   */
+  public async forceConnect(): Promise<void> {
+    console.log('[API] Force connecting...');
+    this.retryCount = 0;
+    this.isConnected = false;
+    await this.connect();
+  }
+
 
 }
 

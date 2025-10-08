@@ -160,8 +160,14 @@ export function renderPopupContent(d?: Reading){
       pL2.textContent=`V=${data.voltage.toFixed(2)} • I=${data.current.toFixed(2)} (est.)`; 
     }
     else { 
-      pL1.textContent=`${data.kind}: ${data.value.toFixed(2)} ${data.unit}`; 
-      pL2.textContent=data.roomId?`room: ${data.roomId}`:""; 
+      // برای temperature, humidity, co2
+      if ('value' in data && 'unit' in data) {
+        pL1.textContent=`${data.kind}: ${data.value.toFixed(2)} ${data.unit}`; 
+        pL2.textContent=data.roomId?`room: ${data.roomId}`:""; 
+      } else {
+        pL1.textContent=`${(data as any).kind}: no data`; 
+        pL2.textContent=(data as any).roomId?`room: ${(data as any).roomId}`:""; 
+      }
     } 
     pTs.textContent=`updated: ${new Date(data.ts).toLocaleTimeString()}`; 
   } else { 
@@ -202,14 +208,73 @@ export function hidePopup(){
   stopPopupAutoUpdate();
 }
 
+// تابع تست برای tooltip
+export function testTooltip(deviceId: string) {
+  console.log(`[Tooltip Test] Testing tooltip for device: ${deviceId}`);
+  console.log(`[Tooltip Test] latestByDev size: ${latestByDev.size}`);
+  console.log(`[Tooltip Test] Available devices:`, Array.from(latestByDev.keys()));
+  
+  const data = latestByDev.get(deviceId);
+  console.log(`[Tooltip Test] Data for ${deviceId}:`, data);
+  
+  if (data) {
+    console.log(`[Tooltip Test] Data timestamp: ${new Date(data.ts).toLocaleTimeString()}`);
+    if ('value' in data && 'unit' in data) {
+      console.log(`[Tooltip Test] Data value: ${data.value} ${data.unit}`);
+    } else if (data.kind === 'light') {
+      console.log(`[Tooltip Test] Light data: ${data.on ? 'ON' : 'OFF'} | ${data.powerW}W`);
+    } else if (data.kind === 'solar') {
+      console.log(`[Tooltip Test] Solar data: ${data.powerW}W | ${data.voltage}V | ${data.current}A`);
+    }
+  } else {
+    console.log(`[Tooltip Test] No data found for device: ${deviceId}`);
+  }
+}
+
+// تابع تست برای بررسی همه داده‌ها
+export function testAllData() {
+  console.log(`[Data Test] Total devices in latestByDev: ${latestByDev.size}`);
+  console.log(`[Data Test] All data:`, latestByDev);
+  
+  for (const [deviceId, data] of latestByDev.entries()) {
+    console.log(`[Data Test] ${deviceId}:`, {
+      kind: data.kind,
+      timestamp: new Date(data.ts).toLocaleTimeString(),
+      hasValue: 'value' in data,
+      hasUnit: 'unit' in data,
+      data: data
+    });
+  }
+}
+
+// تابع تست برای بررسی popup
+export function testPopup() {
+  console.log(`[Popup Test] popupDevId: ${popupDevId}`);
+  console.log(`[Popup Test] popupUpdateInterval: ${popupUpdateInterval}`);
+  console.log(`[Popup Test] popup.style.display: ${popup.style.display}`);
+  
+  if (popupDevId) {
+    const data = latestByDev.get(popupDevId);
+    console.log(`[Popup Test] Current popup data:`, data);
+  }
+}
+
 // شروع auto-update برای tooltip
 function startPopupAutoUpdate() {
   // اگر قبلاً interval فعال است، آن را پاک کن
   stopPopupAutoUpdate();
   
+  console.log(`[Tooltip] Starting auto-update for device: ${popupDevId}`);
+  
   // هر 1 ثانیه tooltip را به‌روزرسانی کن
   popupUpdateInterval = window.setInterval(() => {
     if (popupDevId && popup.style.display !== "none") {
+      console.log(`[Tooltip] Auto-updating tooltip for device: ${popupDevId}`);
+      
+      // Debug: بررسی داده‌های موجود
+      const currentData = latestByDev.get(popupDevId);
+      console.log(`[Tooltip] Current data for ${popupDevId}:`, currentData);
+      
       renderPopupContent();
     }
   }, 1000);
