@@ -5,8 +5,8 @@
     <title>Digital Twin (Babylon + API)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <script type="module" crossorigin src="/assets/index-BaBzYY9Z.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-BhfDO5NW.css">
+    <script type="module" crossorigin src="/assets/index-BYA84IQV.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DS9OdBA9.css">
   </head>
   <body>
     
@@ -310,6 +310,31 @@
       });
 
       // حذف JavaScript برای نمایش نمادها در dropdown
+    </script>
+    
+    <!-- Version Number -->
+    <div id="versionNumber" class="version-number">
+      v1.0.0
+    </div>
+    
+    <script>
+      // بارگذاری ورژن از فایل JSON
+      async function loadVersion() {
+        try {
+          const response = await fetch('./version.json');
+          const versionData = await response.json();
+          const versionElement = document.getElementById('versionNumber');
+          if (versionElement) {
+            versionElement.textContent = `v${versionData.version}`;
+            versionElement.title = `Build: ${versionData.build}\nFeatures: ${versionData.features.join(', ')}`;
+          }
+        } catch (error) {
+          console.warn('Could not load version.json:', error);
+        }
+      }
+      
+      // بارگذاری ورژن هنگام لود صفحه
+      loadVersion();
     </script>
   </body>
 </html>

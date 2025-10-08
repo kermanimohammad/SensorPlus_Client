@@ -1,0 +1,23 @@
+{
+  "version": "1.0.0",
+  "build": "2024.12.19",
+  "features": [
+    "Environment Catalog (room1.glb - room5.glb)",
+    "Auto-selection for new models",
+    "Cross-selection between sensors and environments",
+    "Real-time sensor tooltips with API data",
+    "Project save/load with connection info",
+    "Green border selection highlighting"
+  ],
+  "api": {
+    "endpoint": "https://digitaltwin-sensorplus-1.onrender.com/api/data",
+    "polling_interval": "5000ms",
+    "supported_devices": [
+      "temp-1", "temp-2", "temp-3", "temp-4", "temp-5",
+      "hum-1", "hum-2", "hum-3", "hum-4", "hum-5", 
+      "co2-1", "co2-2", "co2-3", "co2-4", "co2-5",
+      "light-1", "light-2", "light-3", "light-4", "light-5",
+      "solar-plant"
+    ]
+  }
+}
