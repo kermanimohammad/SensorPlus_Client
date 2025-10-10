@@ -44,7 +44,21 @@ export class DatabaseClient {
    */
   async connect(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/db/test`);
+      console.log('[DB] Attempting to connect to database API...');
+      
+      const response = await fetch(`${this.apiBaseUrl}/db/test`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // Add timeout to prevent hanging
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const result = await response.json();
       
       this.isConnected = result.connected;
@@ -59,6 +73,14 @@ export class DatabaseClient {
     } catch (error) {
       console.error('[DB] API connection failed:', error);
       this.isConnected = false;
+      
+      // Provide more specific error messages
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.error('[DB] Network error - is the server running on port 3001?');
+      } else if (error instanceof Error && error.name === 'AbortError') {
+        console.error('[DB] Connection timeout - server may be slow to respond');
+      }
+      
       return false;
     }
   }
@@ -278,6 +300,15 @@ export class DatabaseClient {
     sensorType: SensorType,
     hours: number = 24
   ): Promise<SensorHistoricalData> {
+    // Ensure we're connected before making requests
+    if (!this.isConnected) {
+      console.log('[DB] Not connected, attempting to reconnect...');
+      const connected = await this.connect();
+      if (!connected) {
+        throw new Error('Database not connected and reconnection failed');
+      }
+    }
+
     switch (sensorType) {
       case 'temperature':
         return await this.getTemperatureHistory(deviceId, hours);
@@ -298,12 +329,23 @@ export class DatabaseClient {
    * Get available device IDs for a sensor type
    */
   async getAvailableDevices(sensorType: SensorType): Promise<string[]> {
+    // Ensure we're connected before making requests
     if (!this.isConnected) {
-      throw new Error('Database API not connected');
+      console.log('[DB] Not connected, attempting to reconnect...');
+      const connected = await this.connect();
+      if (!connected) {
+        throw new Error('Database not connected and reconnection failed');
+      }
     }
 
     try {
-      const response = await fetch(`${this.apiBaseUrl}/devices/${sensorType}`);
+      const response = await fetch(`${this.apiBaseUrl}/devices/${sensorType}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);

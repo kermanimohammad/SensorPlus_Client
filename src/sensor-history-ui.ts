@@ -183,8 +183,9 @@ export class SensorHistoryUI {
         if (statusText) statusText.textContent = 'Database: Connected';
         if (statusIcon) statusIcon.style.background = '#28a745';
         if (connectBtn) connectBtn.textContent = 'Connected';
+        console.log('[SensorHistoryUI] Database connection successful');
       } else {
-        throw new Error('Connection failed');
+        throw new Error('Connection failed - check server status');
       }
     } catch (error) {
       console.error('[SensorHistoryUI] Database connection failed:', error);
@@ -193,6 +194,12 @@ export class SensorHistoryUI {
       if (connectBtn) {
         connectBtn.textContent = 'Retry';
         connectBtn.disabled = false;
+      }
+      
+      // Show user-friendly error message
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (errorMessage.includes('Failed to fetch')) {
+        console.error('[SensorHistoryUI] Server may not be running. Please start the server with: node server.js');
       }
     }
   }
@@ -241,11 +248,11 @@ export class SensorHistoryUI {
 
     // Check database connection
     if (!databaseClient.getConnectionStatus()) {
-      const connect = confirm('Database not connected. Would you like to connect now?');
+      const connect = confirm('Database not connected. Would you like to connect now?\n\nIf this fails, make sure the server is running with: node server.js');
       if (connect) {
         await this.connectToDatabase();
         if (!databaseClient.getConnectionStatus()) {
-          alert('Failed to connect to database');
+          alert('Failed to connect to database. Please check:\n1. Server is running (node server.js)\n2. Database credentials are correct\n3. Network connection is working');
           return;
         }
       } else {

@@ -934,4 +934,30 @@ sensorHistoryUI.initialize();
 (window as any).restartPolling = () => apiClient.restartPolling();
 (window as any).forceConnect = () => apiClient.forceConnect();
 (window as any).testApi = () => apiClient.testApiConnection();
+(window as any).testDirectApi = () => apiClient.testDirectApi();
+(window as any).testCorsProxy = () => apiClient.testCorsProxy();
+
+// تابع debug کامل برای نسخه آنلاین
+(window as any).debugOnline = () => {
+  console.log('=== DEBUG ONLINE VERSION ===');
+  console.log('1. Checking environment...');
+  console.log('User Agent:', navigator.userAgent);
+  console.log('Location:', window.location.href);
+  console.log('Protocol:', window.location.protocol);
+  
+  console.log('2. Checking API connection...');
+  const status = apiClient.getPollingStatus();
+  console.log('Polling status:', status);
+  
+  console.log('3. Testing direct API...');
+  apiClient.testDirectApi();
+  
+  console.log('4. Testing CORS proxy...');
+  apiClient.testCorsProxy();
+  
+  console.log('5. Checking latestByDev...');
+  testAllData();
+  
+  console.log('=== END DEBUG ONLINE ===');
+};
 

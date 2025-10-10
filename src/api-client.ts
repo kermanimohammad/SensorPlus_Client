@@ -42,7 +42,10 @@ class DigitalTwinApiClient {
   private corsProxies: string[] = [
     'https://api.allorigins.win/raw?url=',
     'https://cors-anywhere.herokuapp.com/',
-    'https://thingproxy.freeboard.io/fetch/'
+    'https://thingproxy.freeboard.io/fetch/',
+    'https://corsproxy.io/?',
+    'https://api.codetabs.com/v1/proxy?quest=',
+    'https://cors.bridged.cc/'
   ];
   private currentProxyIndex: number = 0;
 
@@ -416,6 +419,100 @@ class DigitalTwinApiClient {
     } catch (error) {
       console.error('[API Test] API connection failed:', error);
     }
+  }
+
+  /**
+   * Test direct API connection without CORS proxy
+   */
+  public async testDirectApi(): Promise<void> {
+    const targetUrl = `${this.baseUrl}/api/data`;
+    console.log(`[Direct API Test] Testing direct connection to: ${targetUrl}`);
+    
+    try {
+      const response = await fetch(targetUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(10000)
+      });
+
+      console.log(`[Direct API Test] Response status: ${response.status}`);
+      console.log(`[Direct API Test] Response headers:`, Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('[Direct API Test] Direct connection successful!');
+      console.log('[Direct API Test] Received data:', data);
+      
+      if (data.success) {
+        this.processSensorData(data);
+      } else {
+        console.error('[Direct API Test] API returned success: false');
+      }
+      
+    } catch (error) {
+      console.error('[Direct API Test] Direct connection failed:', error);
+      console.log('[Direct API Test] This is expected in production due to CORS');
+    }
+  }
+
+  /**
+   * Test CORS proxy connection
+   */
+  public async testCorsProxy(): Promise<void> {
+    const targetUrl = `${this.baseUrl}/api/data`;
+    console.log(`[CORS Test] Testing CORS proxy connection to: ${targetUrl}`);
+    
+    for (let i = 0; i < this.corsProxies.length; i++) {
+      const proxyUrl = this.corsProxies[i];
+      console.log(`[CORS Test] Testing proxy ${i + 1}: ${proxyUrl}`);
+      
+      try {
+        let fullUrl: string;
+        
+        if (proxyUrl.includes('allorigins.win')) {
+          fullUrl = `${proxyUrl}${encodeURIComponent(targetUrl)}`;
+        } else {
+          fullUrl = `${proxyUrl}${targetUrl}`;
+        }
+        
+        console.log(`[CORS Test] Full URL: ${fullUrl}`);
+        
+        const response = await fetch(fullUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal: AbortSignal.timeout(15000)
+        });
+
+        console.log(`[CORS Test] Proxy ${i + 1} response status: ${response.status}`);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log(`[CORS Test] Proxy ${i + 1} successful!`);
+        console.log(`[CORS Test] Received data:`, data);
+        
+        if (data.success) {
+          this.processSensorData(data);
+          return; // Success, exit loop
+        } else {
+          console.error(`[CORS Test] Proxy ${i + 1} returned success: false`);
+        }
+        
+      } catch (error) {
+        console.error(`[CORS Test] Proxy ${i + 1} failed:`, error);
+      }
+    }
+    
+    console.error('[CORS Test] All CORS proxies failed');
   }
 
   /**
