@@ -2,10 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Digital Twin (Babylon + API)</title>
+    <title>SensorPlus - EcoTwinAI</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <script type="module" crossorigin src="/assets/index-KsLnkw3a.js"></script>
+    <script type="module" crossorigin src="/assets/index-CmopLown.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-DS9OdBA9.css">
   </head>
   <body>
@@ -219,25 +219,27 @@
 
       <!-- ================= CONNECTION ================ -->
       <section id="panel-connection" class="panel">
-        <div class="row">
-          <label>Server URL</label>
-          <input id="brokerUrl" type="text" value="https://digitaltwin-sensorplus-1.onrender.com" placeholder="https://digitaltwin-sensorplus-1.onrender.com"/>
-        </div>
-        <div class="row">
-          <label>Polling Interval (ms)</label>
-          <input id="brokerTopic" type="number" value="5000" placeholder="5000"/>
-        </div>
-        <div class="row inline">
-          <button id="btnReconnect" class="btn primary">
-            <img src="/icons/connect.svg" alt="" class="icon" /> Connect
-          </button>
-          <button id="btnDisconnect" class="btn">
-            <img src="/icons/disconnect.svg" alt="" class="icon" /> Disconnect
-          </button>
-        </div>
-        <div class="row">
-          <label>Discovered Devices</label>
-          <div id="deviceList" class="list"></div>
+        <div class="api-panel">
+          <div class="row">
+            <label>Server URL</label>
+            <input id="brokerUrl" type="text" value="https://digitaltwin-sensorplus-1.onrender.com" placeholder="https://digitaltwin-sensorplus-1.onrender.com"/>
+          </div>
+          <div class="row">
+            <label>Polling Interval (ms)</label>
+            <input id="brokerTopic" type="number" value="5000" placeholder="5000"/>
+          </div>
+          <div class="row inline">
+            <button id="btnReconnect" class="btn primary">
+              <img src="/icons/connect.svg" alt="" class="icon" /> Connect
+            </button>
+            <button id="btnDisconnect" class="btn">
+              <img src="/icons/disconnect.svg" alt="" class="icon" /> Disconnect
+            </button>
+          </div>
+          <div class="row">
+            <label>Discovered Devices</label>
+            <div id="deviceList" class="list"></div>
+          </div>
         </div>
       </section>
 
@@ -314,7 +316,7 @@
     
     <!-- Version Number -->
     <div id="versionNumber" class="version-number">
-      Development Version - 2025.0.1
+      Development Version - 2025.0.1.8
     </div>
     
     <script>
