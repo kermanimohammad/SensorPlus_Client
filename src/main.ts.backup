@@ -117,8 +117,10 @@ let lastTransformValues = { x: 0, y: 0, z: 0, mode: '' };
 
 function updateTransformValues(): void {
   const selectedId = (window as any).selectedId as string | null;
+ updateTransformValues - selectedId:', selectedId);
   
   if (!selectedId) {
+ No selection, clearing inputs');
     clearTransformInputs();
     hideTransformPanel();
     return;
@@ -129,13 +131,24 @@ function updateTransformValues(): void {
   if (selectedId.startsWith('env_')) {
     // Environment
     const envId = selectedId.replace('env_', '');
+ Environment ID:', envId);
     const env = envs.get(envId);
+ Environment found:', !!env);
     if (env) {
       targetNode = env.root; // TransformNode
+ Environment root:', {
+        type: targetNode?.constructor.name,
+        position: targetNode?.position,
+        rotation: targetNode?.rotation,
+        scaling: targetNode?.scaling
+      });
     }
   } else {
     // Sensor
     targetNode = sensorHandles.get(selectedId) || null; // AbstractMesh
+    if (targetNode) {
+      // Sensor node found
+    }
   }
   
   if (!targetNode) {
@@ -147,6 +160,7 @@ function updateTransformValues(): void {
   const isRotateActive = btnRotate?.getAttribute("aria-pressed") === "true";
   const isScaleActive = btnScale?.getAttribute("aria-pressed") === "true";
   
+ Active modes:', { move: isMoveActive, rotate: isRotateActive, scale: isScaleActive });
   
   const xInput = document.getElementById('transformX') as HTMLInputElement;
   const yInput = document.getElementById('transformY') as HTMLInputElement;
@@ -165,6 +179,12 @@ function updateTransformValues(): void {
       mode: 'position'
     };
     
+ Setting position values:', newValues);
+ Actual 3D position:', {
+      x: targetNode.position.x,
+      y: targetNode.position.y,
+      z: targetNode.position.z
+    });
     xInput.value = newValues.x === 0 ? '' : newValues.x.toString();
     yInput.value = newValues.y === 0 ? '' : newValues.y.toString();
     zInput.value = newValues.z === 0 ? '' : newValues.z.toString();
@@ -181,6 +201,12 @@ function updateTransformValues(): void {
       mode: 'rotation'
     };
     
+ Setting rotation values:', newValues);
+ Actual 3D rotation:', {
+      x: targetNode.rotation.x,
+      y: targetNode.rotation.y,
+      z: targetNode.rotation.z
+    });
     xInput.value = newValues.x.toString();
     yInput.value = newValues.y.toString();
     zInput.value = newValues.z.toString();
@@ -193,6 +219,12 @@ function updateTransformValues(): void {
       mode: 'scale'
     };
     
+ Setting scale values:', newValues);
+ Actual 3D scale:', {
+      x: targetNode.scaling.x,
+      y: targetNode.scaling.y,
+      z: targetNode.scaling.z
+    });
     xInput.value = newValues.x === 0 ? '' : newValues.x.toString();
     yInput.value = newValues.y === 0 ? '' : newValues.y.toString();
     zInput.value = newValues.z === 0 ? '' : newValues.z.toString();
@@ -340,25 +372,30 @@ gizmos.gizmos.rotationGizmo?.onDragStartObservable.add(() => {
 });
 
 gizmos.gizmos.rotationGizmo?.onDragEndObservable.add(() => {
+ Rotation gizmo drag ended");
   camera.attachControl(canvas, true);
   // تاخیر بیشتر برای جلوگیری از تداخل با POINTERPICK
   setTimeout(() => { 
     isGizmoInteraction = false; 
     wasInitialClickOnGizmo = false;
+ Rotation gizmo interaction flag reset");
   }, 300);
 });
 
 gizmos.gizmos.scaleGizmo?.onDragStartObservable.add(() => {
+ Scale gizmo drag started");
   camera.detachControl();
   isGizmoInteraction = true; // شروع تعامل با گیزمو
 });
 
 gizmos.gizmos.scaleGizmo?.onDragEndObservable.add(() => {
+ Scale gizmo drag ended");
   camera.attachControl(canvas, true);
   // تاخیر بیشتر برای جلوگیری از تداخل با POINTERPICK
   setTimeout(() => { 
     isGizmoInteraction = false; 
     wasInitialClickOnGizmo = false;
+ Scale gizmo interaction flag reset");
   }, 300);
 });
 
@@ -419,6 +456,7 @@ function removeSelectionHighlight() {
 
 // تابع کمکی برای لغو کامل انتخاب
 function clearSelection() {
+ clearSelection called");
   // لغو انتخاب فعلی
   (window as any).selectedId = null;
   hidePopup();
@@ -505,7 +543,6 @@ function attachToCurrentSelection(): boolean {
         // به‌روزرسانی مقادیر ترنسفورم
         updateTransformValues();
         return true;
-      } else {
       }
     }
   } else {
@@ -719,6 +756,7 @@ btnAdd.addEventListener("click", async () => {
     enableSelect();
   }
   
+ New sensor created and selected:", id);
 });
 
 
@@ -750,6 +788,7 @@ sceneBtnBind.addEventListener("click", () => {
   // به‌روزرسانی لیست سنسورها
   updateSensorList();
   
+ Scene properties applied for sensor:", id);
 });
 
 // scene JSON save/load removed per requirement
@@ -906,9 +945,12 @@ scene.onPointerObservable.add((pi) => {
   if (pi.type !== BABYLON.PointerEventTypes.POINTERPICK) return;
   const pick = pi.pickInfo;
   
+ POINTERPICK event - isGizmoInteraction:", isGizmoInteraction, "wasInitialClickOnGizmo:", wasInitialClickOnGizmo);
+ POINTERPICK - pick.hit:", pick?.hit, "pickedMesh:", pick?.pickedMesh?.name);
   
   // اگر در حال تعامل با گیزمو هستیم، انتخاب را لغو نکن
   if (isGizmoInteraction) {
+ POINTERPICK ignored due to gizmo interaction");
     return;
   }
   
@@ -921,8 +963,10 @@ scene.onPointerObservable.add((pi) => {
   if (!pick?.hit || !pick.pickedMesh) {
     // اگر کلیک اولیه روی گیزمو نبوده، انتخاب را لغو کن
     if (!wasInitialClickOnGizmo) {
+ POINTERPICK on empty space - clearing selection (not on gizmo)");
       clearSelection();
     } else {
+ POINTERPICK on empty space - keeping selection (was on gizmo)");
     }
     return;
   }
@@ -969,6 +1013,7 @@ scene.onPointerObservable.add((pi) => {
       enableSelect();
     }
     
+ Sensor selected in 3D scene:", r.sensorId);
     return;
   }
 
@@ -1017,10 +1062,12 @@ scene.onPointerObservable.add((pi) => {
   const pick = pi.pickInfo;
   if (!pick?.hit || !pick.pickedMesh) return;
 
+ POINTERDOUBLETAP - pick.hit:", pick?.hit, "pickedMesh:", pick?.pickedMesh?.name);
 
   // بررسی سنسور
   const r = resolveHandle(pick.pickedMesh);
   if (r) { 
+ Double-click on sensor - framing:", r.sensorId);
     frameNode(r.handle); 
     return; 
   }
@@ -1028,6 +1075,7 @@ scene.onPointerObservable.add((pi) => {
   // بررسی محیط
   const envId = resolveEnvFromMesh(pick.pickedMesh);
   if (envId) {
+ Double-click on environment - framing:", envId);
     setActiveEnvironment(envId);
     const envRoot = getActiveEnvRoot();
     if (envRoot) frameNode(envRoot);
@@ -1039,9 +1087,12 @@ scene.onPointerObservable.add((pi) => {
   if (pi.type !== BABYLON.PointerEventTypes.POINTERDOWN) return;
   const pick = pi.pickInfo;
   
+ POINTERDOWN event - isGizmoInteraction:", isGizmoInteraction, "wasInitialClickOnGizmo:", wasInitialClickOnGizmo);
+ POINTERDOWN - pick.hit:", pick?.hit, "pickedMesh:", pick?.pickedMesh?.name);
   
   // اگر در حال تعامل با گیزمو هستیم، کاری نکن
   if (isGizmoInteraction) {
+ POINTERDOWN ignored due to gizmo interaction");
     return;
   }
   
@@ -1054,8 +1105,10 @@ scene.onPointerObservable.add((pi) => {
   if (!pick?.hit || !pick.pickedMesh) {
     // اگر کلیک اولیه روی گیزمو نبوده، انتخاب را لغو کن
     if (!wasInitialClickOnGizmo) {
+ POINTERDOWN on empty space - clearing selection (not on gizmo)");
       clearSelection();
     } else {
+ POINTERDOWN on empty space - keeping selection (was on gizmo)");
     }
     return;
   }
@@ -1110,14 +1163,14 @@ document.addEventListener("keydown", (event) => {
 //   canvas.addEventListener("click", (event) => {
 //     // اگر در حال تعامل با گیزمو هستیم، انتخاب را لغو نکن
 //     if (isGizmoInteraction) {
-//       console.log("[DEBUG] Canvas click ignored due to gizmo interaction");
+//        Canvas click ignored due to gizmo interaction");
 //       return;
 //     }
 //     
 //     const pick = scene.pick(event.clientX, event.clientY);
 //     
 //     if (!pick?.hit || !pick.pickedMesh) {
-//       console.log("[DEBUG] Canvas click on empty space - clearing selection");
+//        Canvas click on empty space - clearing selection");
 //       clearSelection();
 //     }
 //   });
@@ -1141,13 +1194,23 @@ const transformX = document.getElementById('transformX') as HTMLInputElement;
 const transformY = document.getElementById('transformY') as HTMLInputElement;
 const transformZ = document.getElementById('transformZ') as HTMLInputElement;
 
-[transformX, transformY, transformZ].forEach((input) => {
+[transformX, transformY, transformZ].forEach((input, index) => {
   if (input) {
     input.addEventListener('input', () => {
+ Input changed:', { 
+        field: ['X', 'Y', 'Z'][index], 
+        value: input.value,
+        selectedId: (window as any).selectedId 
+      });
       applyTransformFromInputs();
     });
     
     input.addEventListener('blur', () => {
+ Input blur:', { 
+        field: ['X', 'Y', 'Z'][index], 
+        value: input.value,
+        selectedId: (window as any).selectedId 
+      });
       applyTransformFromInputs();
     });
   }
@@ -1155,8 +1218,10 @@ const transformZ = document.getElementById('transformZ') as HTMLInputElement;
 
 function applyTransformFromInputs(): void {
   const selectedId = (window as any).selectedId as string | null;
+ applyTransformFromInputs - selectedId:', selectedId);
   
   if (!selectedId) {
+ No selection, hiding panel');
     hideTransformPanel();
     return;
   }
@@ -1165,15 +1230,20 @@ function applyTransformFromInputs(): void {
   
   if (selectedId.startsWith('env_')) {
     const envId = selectedId.replace('env_', '');
+ Environment ID:', envId);
     const env = envs.get(envId);
+ Environment found:', !!env);
     if (env) {
       targetNode = env.root; // TransformNode
+ Environment root found:', !!targetNode);
     }
   } else {
     targetNode = sensorHandles.get(selectedId) || null; // AbstractMesh
+ Sensor found:', !!targetNode);
   }
   
   if (!targetNode) {
+ No target node found');
     return;
   }
   
@@ -1182,34 +1252,42 @@ function applyTransformFromInputs(): void {
   const yValue = transformY?.value === '' ? 0 : parseFloat(transformY?.value || '0');
   const zValue = transformZ?.value === '' ? 0 : parseFloat(transformZ?.value || '0');
   
+ Input values:', { x: xValue, y: yValue, z: zValue });
   
   const isMoveActive = btnMove?.getAttribute("aria-pressed") === "true";
   const isRotateActive = btnRotate?.getAttribute("aria-pressed") === "true";
   const isScaleActive = btnScale?.getAttribute("aria-pressed") === "true";
   
+ Active modes:', { move: isMoveActive, rotate: isRotateActive, scale: isScaleActive });
   
   if (isMoveActive) {
     // Apply position - handle both AbstractMesh and TransformNode
+ Applying position:', { x: xValue, y: yValue, z: zValue });
     if (targetNode.position) {
       targetNode.position.set(xValue, yValue, zValue);
     } else {
       targetNode.setAbsolutePosition(new BABYLON.Vector3(xValue, yValue, zValue));
     }
+ Position after set:', targetNode.position || targetNode.getAbsolutePosition());
   } else if (isRotateActive) {
     // Apply rotation (convert degrees to radians)
     const xRad = xValue * Math.PI / 180;
     const yRad = yValue * Math.PI / 180;
     const zRad = zValue * Math.PI / 180;
     
+ Applying rotation:', { x: xRad, y: yRad, z: zRad });
     targetNode.rotationQuaternion = null; // Clear quaternion to use euler
     targetNode.rotation.set(xRad, yRad, zRad);
+ Rotation after set:', targetNode.rotation);
   } else if (isScaleActive) {
     // Apply scale (prevent zero scale)
     const scaleX = xValue === 0 ? 0.001 : xValue;
     const scaleY = yValue === 0 ? 0.001 : yValue;
     const scaleZ = zValue === 0 ? 0.001 : zValue;
     
+ Applying scale:', { x: scaleX, y: scaleY, z: scaleZ });
     targetNode.scaling.set(scaleX, scaleY, scaleZ);
+ Scale after set:', targetNode.scaling);
   }
 }
 
@@ -1251,7 +1329,16 @@ sensorHistoryUI.initialize();
 
 // Debug function to check environments
 (window as any).debugEnvironments = () => {
-  envs.forEach((_env, _id) => {
+ Available environments:', Array.from(envs.keys()));
+  envs.forEach((env, id) => {
+ Environment ${id}:`, {
+      name: env.name,
+      hasRoot: !!env.root,
+      rootType: env.root?.constructor.name,
+      position: env.root?.position,
+      rotation: env.root?.rotation,
+      scaling: env.root?.scaling
+    });
   });
 };
 
@@ -1281,7 +1368,6 @@ scene.onBeforeRenderObservable.add(() => {
         if (hasChanged) {
           updateTransformValues();
         }
-      } else {
       }
     }
   }
@@ -1289,7 +1375,6 @@ scene.onBeforeRenderObservable.add(() => {
 
 function getCurrentTransformValues(): { x: number, y: number, z: number, mode: string } | null {
   const selectedId = (window as any).selectedId as string | null;
-  
   if (!selectedId) {
     hideTransformPanel();
     return null;
@@ -1299,18 +1384,15 @@ function getCurrentTransformValues(): { x: number, y: number, z: number, mode: s
   
   if (selectedId.startsWith('env_')) {
     const envId = selectedId.replace('env_', '');
-     const env = envs.get(envId);
+    const env = envs.get(envId);
     if (env) {
       targetNode = env.root; // TransformNode
-    } else {
     }
   } else {
     targetNode = sensorHandles.get(selectedId) || null; // AbstractMesh
   }
   
-  if (!targetNode) {
-    return null;
-  }
+  if (!targetNode) return null;
   
   const isMoveActive = btnMove?.getAttribute("aria-pressed") === "true";
   const isRotateActive = btnRotate?.getAttribute("aria-pressed") === "true";
@@ -1319,13 +1401,12 @@ function getCurrentTransformValues(): { x: number, y: number, z: number, mode: s
   if (isMoveActive) {
     // Handle both AbstractMesh and TransformNode
     const position = targetNode.position || targetNode.getAbsolutePosition();
-    const values = {
+    return {
       x: parseFloat(position.x.toFixed(2)),
       y: parseFloat(position.y.toFixed(2)),
       z: parseFloat(position.z.toFixed(2)),
       mode: 'position'
     };
-    return values;
   } else if (isRotateActive) {
     const rotation = targetNode.rotationQuaternion ? 
       targetNode.rotationQuaternion.toEulerAngles() : 
@@ -1366,7 +1447,7 @@ function getCurrentTransformValues(): { x: number, y: number, z: number, mode: s
 
 // تابع debug کامل برای نسخه آنلاین
 (window as any).debugOnline = () => {
-  console.log('=== DEBUG ONLINE VERSION ===');
+ ONLINE VERSION ===');
   console.log('1. Checking environment...');
   console.log('User Agent:', navigator.userAgent);
   console.log('Location:', window.location.href);

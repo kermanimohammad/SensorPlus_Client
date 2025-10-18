@@ -170,6 +170,13 @@ export async function addEnvironmentFromGLBArrayBuffer(
   // ایجاد envId قبل از استفاده
   const envId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+  // اضافه کردن metadata به root
+  (root as any).metadata = { 
+    envId: envId, 
+    isEnvironment: true,
+    envName: name || "Env"
+  };
+
   container.addAllToScene();
   for (const mesh of container.meshes) {
     if (!mesh.parent) mesh.parent = root;
@@ -217,6 +224,13 @@ export async function addEnvironmentFromGLBFile(file: File, name?: string): Prom
   
   // ایجاد envId قبل از استفاده
   const envId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  // اضافه کردن metadata به root
+  (root as any).metadata = { 
+    envId: envId, 
+    isEnvironment: true,
+    envName: name || file.name || "Env"
+  };
 
   container.addAllToScene();
   for (const mesh of container.meshes) {

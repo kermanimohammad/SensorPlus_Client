@@ -59,8 +59,6 @@ class DigitalTwinApiClient {
   private convertToReading(deviceData: DeviceData): Reading {
     const timestamp = new Date(deviceData.timestamp).getTime();
     
-    console.log(`[API] Converting device data for ${deviceData.device_id}:`, deviceData);
-    
     if (deviceData.kind === "light") {
       // For light sensors, value is in lux, not watts
       // Determine on/off status based on lux value (if > 0, light is on)
@@ -79,7 +77,6 @@ class DigitalTwinApiClient {
         on: isOn,
         powerW: estimatedPowerW
       };
-      console.log(`[API] Converted light reading:`, reading);
       return reading;
     }
     
@@ -99,7 +96,6 @@ class DigitalTwinApiClient {
         voltage: deviceData.voltage_volts || estimatedVoltage,
         current: deviceData.current_amps || estimatedCurrent
       };
-      console.log(`[API] Converted solar reading:`, reading);
       return reading;
     }
     
@@ -112,21 +108,45 @@ class DigitalTwinApiClient {
       value: deviceData.value || 0,
       unit: deviceData.unit || ""
     };
-    console.log(`[API] Converted sensor reading:`, reading);
     return reading;
   }
 
   /**
-   * Fetch current sensor data from API using CORS proxy
+   * Fetch current sensor data from API using local proxy
    */
   private async fetchSensorData(): Promise<ApiResponse | null> {
-    const targetUrl = `${this.baseUrl}/api/data`;
+    // Use local proxy to avoid CORS issues
+    const proxyUrl = 'http://localhost:3001/api/proxy/data';
     
-    console.log(`[API] Fetching data from: ${targetUrl} at ${new Date().toLocaleTimeString()}`);
     
-    // Try direct connection first (for development)
     try {
-      console.log('[API] Trying direct connection...');
+      const response = await fetch(proxyUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(30000) // 30 second timeout
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data: ApiResponse = await response.json();
+      
+      if (!data.success) {
+        throw new Error('API returned success: false');
+      }
+
+      return data;
+      
+    } catch (error) {
+      console.error('[API] Proxy connection failed:', error);
+    }
+    
+    // Fallback to direct connection
+    const targetUrl = `${this.baseUrl}/api/data`;
+    try {
       const response = await fetch(targetUrl, {
         method: 'GET',
         headers: {
@@ -145,7 +165,6 @@ class DigitalTwinApiClient {
         throw new Error('API returned success: false');
       }
 
-      console.log(`[API] Direct connection successful! Received ${Object.keys(data.devices).length} devices`);
       return data;
       
     } catch (error) {
@@ -208,24 +227,10 @@ class DigitalTwinApiClient {
    * Process sensor data and update visualizations
    */
   private processSensorData(data: ApiResponse): void {
-    const deviceCount = Object.keys(data.devices).length;
-    console.log(`[API] Processing data for ${deviceCount} devices`);
-    console.log(`[API] Raw API data:`, data);
-    
     // Update latest readings
     for (const [deviceId, deviceData] of Object.entries(data.devices)) {
       const reading = this.convertToReading(deviceData);
-      const oldReading = latestByDev.get(deviceId);
       latestByDev.set(deviceId, reading);
-      
-      // Debug: نمایش به‌روزرسانی داده‌ها
-      console.log(`[API] Updated reading for device: ${deviceId}`, {
-        rawData: deviceData,
-        convertedReading: reading,
-        timestamp: new Date(reading.ts).toLocaleTimeString(),
-        oldTimestamp: oldReading ? new Date(oldReading.ts).toLocaleTimeString() : 'none',
-        dataChanged: !oldReading || oldReading.ts !== reading.ts
-      });
       
       // Find matching sensor in scene
       let targetSensorId: string | undefined;
@@ -252,31 +257,33 @@ class DigitalTwinApiClient {
    */
   public async connect(): Promise<void> {
     if (this.isConnected) {
-      console.log('[API] Already connected');
       return;
     }
 
-    console.log('[API] Connecting to DigitalTwin SensorPlus API...');
     this.setStatus('connecting...');
     
-    // Test connection first
-    const testData = await this.fetchSensorData();
-    if (!testData) {
-      this.setStatus('connection failed');
-      throw new Error('Failed to connect to DigitalTwin API');
-    }
+    try {
+      // Test connection first
+      const testData = await this.fetchSensorData();
+      if (!testData) {
+        this.setStatus('connection failed');
+        throw new Error('Failed to connect to DigitalTwin API via proxy');
+      }
 
-    this.isConnected = true;
-    this.retryCount = 0;
-    this.setStatus('connected');
-    
-    // Process initial data
-    this.processSensorData(testData);
-    
-    // Start polling
-    this.startPolling();
-    
-    console.log('[API] Connected successfully');
+      this.isConnected = true;
+      this.retryCount = 0;
+      this.setStatus('connected');
+      
+      // Process initial data
+      this.processSensorData(testData);
+      
+      // Start polling
+      this.startPolling();
+    } catch (error) {
+      this.setStatus('connection failed');
+      console.error('[API] Connection failed:', error);
+      throw error;
+    }
   }
 
   /**
@@ -290,13 +297,11 @@ class DigitalTwinApiClient {
     console.log(`[API] Starting polling every ${this.pollingIntervalMs}ms`);
 
     this.pollingInterval = window.setInterval(async () => {
-      console.log(`[API] Polling attempt at ${new Date().toLocaleTimeString()}`);
       
       try {
         const data = await this.fetchSensorData();
         
         if (data) {
-          console.log(`[API] Polling successful - received data for ${Object.keys(data.devices).length} devices`);
           this.processSensorData(data);
           this.retryCount = 0; // Reset retry count on success
         } else {
@@ -357,7 +362,7 @@ class DigitalTwinApiClient {
   }
 
   /**
-   * Update server URL
+   * Update server URL (for display purposes only - we use local proxy)
    */
   public updateServerUrl(newUrl: string): void {
     if (this.isConnected) {

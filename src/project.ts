@@ -7,7 +7,7 @@ import {
   addEnvironmentFromProjectB64,
   clearAllEnvironments,
 } from "./env";
-import { sensors, sensorHandles, createSensorHandle, prefabsReady, updateSensorList } from "./sensors";
+import { sensors, sensorHandles, createSensorHandle, prefabsReady, updateSensorList, createPermanentPopup } from "./sensors";
 import { GLB_WORLD_SCALE } from "./types";
 import { apiClient } from "./api-client";
 import { updateConnectionUI } from "./api-ui";
@@ -139,6 +139,10 @@ function recreateSensorFromSerialized(s: any): void {
     // اطمینان از اعمال صحیح scale
     (h as any).scaling?.setAll((node.scale ?? 1) * GLB_WORLD_SCALE);
   } catch {}
+  
+  // Create permanent popup for loaded sensor
+  createPermanentPopup(node.deviceId, h);
+  
   updateSensorList();
 }
 

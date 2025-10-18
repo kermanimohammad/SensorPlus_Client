@@ -1,6 +1,6 @@
 {
-  "version": "2025.0.1",
-  "build": "2025.01.01",
+  "version": "2025.0.1.9",
+  "build": "2025.01.08",
   "features": [
     "Environment Catalog (room1.glb - room5.glb)",
     "Auto-selection for new models",
@@ -8,7 +8,11 @@
     "Real-time sensor tooltips with API data",
     "Project save/load with connection info",
     "Green border selection highlighting",
-    "Robust polling mechanism with improved error handling"
+    "Robust polling mechanism with improved error handling",
+    "Database integration with historical data",
+    "Time-series charts for sensor data",
+    "Auto-connect to API on startup",
+    "Enhanced debugging and logging"
   ],
   "api": {
     "endpoint": "https://digitaltwin-sensorplus-1.onrender.com/api/data",

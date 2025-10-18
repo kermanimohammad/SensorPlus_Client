@@ -1,6 +1,6 @@
 // Shared types & flags
 export const GLB_WORLD_SCALE = 5; // magnifier for small GLB models (e.g., cm)
-export const ENABLE_PULSE = true; // visual pulse on new readings
+export const ENABLE_PULSE = false; // visual pulse on new readings
 
 
 export type SensorType = "temperature" | "humidity" | "co2" | "light" | "solar";

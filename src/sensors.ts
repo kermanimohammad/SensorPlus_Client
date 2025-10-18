@@ -20,7 +20,13 @@ const modelUrlByType: Partial<Record<SensorType, string>> = {
 const prefabContainers = new Map<SensorType, BABYLON.AssetContainer>();
 export const prefabsReady = (async()=>{
   await Promise.all(Object.entries(modelUrlByType).map(async ([t,url])=>{
-    try{ const c = await BABYLON.SceneLoader.LoadAssetContainerAsync(url!, undefined, scene); prefabContainers.set(t as SensorType, c);} catch(e){console.warn("[GLB]", t, url, e);} }));
+    try{
+      const c = await BABYLON.SceneLoader.LoadAssetContainerAsync(url!, undefined, scene);
+      prefabContainers.set(t as SensorType, c);
+    } catch(e){
+      console.error("[PrefabsReady] Failed to load", t, url, e);
+    }
+  }));
 })();
 
 // Removed color3 and tintHierarchy functions to preserve original GLB materials
@@ -72,7 +78,13 @@ export function createSensorHandle(s: SensorNode){
   const centerX=(bb.min.x+bb.max.x)/2, centerZ=(bb.min.z+bb.max.z)/2, bottomY=bb.min.y;
   modelRoot.position.set(-centerX,-bottomY,-centerZ);
   modelRoot.rotationQuaternion=null;
-  modelRoot.rotation.set(0,0,0);
+  // Apply user rotation if available
+  if (s.rotationEulerDeg) {
+    const toRad = (deg: number) => deg * Math.PI / 180;
+    modelRoot.rotation.set(toRad(s.rotationEulerDeg.x), toRad(s.rotationEulerDeg.y), toRad(s.rotationEulerDeg.z));
+  } else {
+    modelRoot.rotation.set(0,0,0);
+  }
   modelRoot.scaling.setAll(1);
 
   const handle = BABYLON.MeshBuilder.CreateBox(`${s.id}-handle`,{size:0.001},scene);
@@ -97,13 +109,34 @@ export function createSensorHandle(s: SensorNode){
   // tintHierarchy(handle, s.color ?? palette[s.type]); // Removed to preserve original GLB materials
 
   sensorHandles.set(s.id, handle);
+  
   return handle;
 }
 
 export function applyReadingToSensor(handle: BABYLON.AbstractMesh, reading: Reading){
   const info = (handle as any).metadata as { sensorId: string; deviceId: string; type: SensorType };
   const base = (sensors.get(info.sensorId)?.scale ?? 1) * GLB_WORLD_SCALE;
-  const setPulse=(t:number,a=0.15)=>{ if(!ENABLE_PULSE){ handle.scaling.setAll(base); return;} handle.scaling.setAll(base*(1+a*t)); };
+  
+  // Store current scale to preserve user modifications
+  const currentScale = handle.scaling.x;
+  const isUserModified = Math.abs(currentScale - base) > 0.001;
+  
+  // Store current rotation to preserve user modifications
+  const currentRotation = handle.rotation.clone();
+  
+  const setPulse=(t:number,a=0.15)=>{ 
+    if(!ENABLE_PULSE){ 
+      // Only reset to base if user hasn't modified the scale
+      if (!isUserModified) {
+        handle.scaling.setAll(base); 
+      }
+      return;
+    } 
+    // Use current scale as base for pulse if user modified it
+    const pulseBase = isUserModified ? currentScale : base;
+    handle.scaling.setAll(pulseBase*(1+a*t)); 
+  };
+  
   const children = handle.getChildMeshes(); const targetMeshes = children.length?children:[handle];
   // const setEmissive=(c: BABYLON.Color3)=> targetMeshes.forEach(m=>{ const mat=m.material as any; if(mat?.emissiveColor!==undefined) mat.emissiveColor=c; }); // غیرفعال شده - رنگ تغییر نمی‌کند
   const clamp=(v:number,lo:number,hi:number)=> Math.max(lo, Math.min(hi,v)); const norm=(v:number,lo:number,hi:number)=> (clamp(v,lo,hi)-lo)/(hi-lo);
@@ -117,7 +150,10 @@ export function applyReadingToSensor(handle: BABYLON.AbstractMesh, reading: Read
   else if(reading.kind==="light"){ 
     const vis = reading.on?1:0.25; 
     targetMeshes.forEach(m=>m.visibility=vis); 
-    handle.scaling.setAll(base); 
+    // Only reset scale if user hasn't modified it
+    if (!isUserModified) {
+      handle.scaling.setAll(base); 
+    }
   }
   else { 
     let t=0; 
@@ -128,181 +164,327 @@ export function applyReadingToSensor(handle: BABYLON.AbstractMesh, reading: Read
     setPulse(t,0.15); 
     // setEmissive(BABYLON.Color3.Lerp(baseCol.scale(0.4), baseCol, t)); // غیرفعال شده
   }
+  
+  // Restore rotation to preserve user modifications
+  handle.rotation.copyFrom(currentRotation);
+  
+  // Update permanent popup for this sensor
+  updatePermanentPopup(info.deviceId);
 }
 
-// Simple popup overlay (kept minimal)
-const popup = document.createElement("div"); popup.style.cssText = `position:fixed;z-index:30;min-width:240px;max-width:380px;background:#000c;color:#fff;padding:10px 12px;border-radius:10px;font:13px system-ui;display:none;pointer-events:auto;box-shadow:0 10px 24px rgba(0,0,0,.35)`;
-const pTitle=document.createElement("div"); pTitle.style.fontWeight="700"; const pL1=document.createElement("div"); const pL2=document.createElement("div"); pL2.style.color="#cbd5e1"; const pTs=document.createElement("div"); pTs.style.cssText="color:#94a3b8;font-size:12px;margin-top:4px"; const pClose=document.createElement("button"); pClose.textContent="✕"; pClose.style.cssText="position:absolute;top:4px;right:6px;background:transparent;color:#fff;border:0;font-size:16px;cursor:pointer"; pClose.onclick=()=>{ hidePopup(); }; popup.append(pTitle,pL1,pL2,pTs,pClose); document.body.appendChild(popup);
-let popupTarget: BABYLON.AbstractMesh | null = null; 
-export let popupDevId: string | null = null;
-let popupUpdateInterval: number | null = null;
+// Permanent popup system for all sensors
+const permanentPopups = new Map<string, HTMLElement>();
 
-export function renderPopupContent(d?: Reading){ 
-  if(!popupDevId) return; 
-  const data = d ?? latestByDev.get(popupDevId); 
+// Global popup visibility state
+let popupsEnabled = true;
+
+// Map to store individual popup visibility states
+const individualPopupStates = new Map<string, boolean>();
+
+// Legacy function - disabled
+export function renderPopupContent(_d?: Reading){ 
+  console.log(`[Legacy Popup] renderPopupContent called - using permanent popups instead`);
+}
+
+// Create permanent popup for a sensor
+export function createPermanentPopup(deviceId: string, _handle: BABYLON.AbstractMesh): void {
+  // Remove existing popup if any
+  removePermanentPopup(deviceId);
   
-  // Debug: نمایش اطلاعات tooltip
-  console.log(`[Tooltip] Rendering for device: ${popupDevId}`, {
-    hasData: !!data,
-    data: data,
-    latestByDevSize: latestByDev.size,
-    allDevices: Array.from(latestByDev.keys())
-  });
+  const popup = document.createElement("div");
+  popup.id = `popup-${deviceId}`;
+  popup.style.cssText = `
+    position: fixed;
+    z-index: 30;
+    min-width: 80px;
+    max-width: 180px;
+    width: auto;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font: 11px system-ui;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.2);
+    left: 100px;
+    top: 100px;
+    white-space: nowrap;
+  `;
   
-  pTitle.textContent = `Device: ${popupDevId}`; 
-  if(data){ 
-    if(data.kind==="light"){ 
-      pL1.textContent=`light: ${data.on?"ON":"OFF"} | ${data.powerW.toFixed(1)} W (est.)`; 
-      pL2.textContent=data.roomId?`room: ${data.roomId}`:""; 
+  const pTitle = document.createElement("div");
+  pTitle.style.fontWeight = "700";
+  pTitle.style.fontSize = "10px";
+  pTitle.style.marginBottom = "2px";
+  
+  const pL1 = document.createElement("div");
+  pL1.style.fontSize = "10px";
+  
+  const pL2 = document.createElement("div");
+  pL2.style.color = "#cbd5e1";
+  pL2.style.fontSize = "9px";
+  
+  const pTs = document.createElement("div");
+  pTs.style.cssText = "color:#94a3b8;font-size:8px;margin-top:1px";
+  
+  popup.append(pTitle, pL1, pL2, pTs);
+  document.body.appendChild(popup);
+  
+  // Set initial visibility based on global and individual states
+  const individualEnabled = individualPopupStates.get(deviceId) ?? true;
+  popup.style.display = (popupsEnabled && individualEnabled) ? 'block' : 'none';
+  
+  permanentPopups.set(deviceId, popup);
+  
+  // Update popup content
+  updatePermanentPopup(deviceId);
+  
+  // Adjust popup width based on content
+  adjustPopupWidth(popup);
+}
+
+// Adjust popup width based on content
+function adjustPopupWidth(popup: HTMLElement): void {
+  // Temporarily make it visible to measure content
+  const originalDisplay = popup.style.display;
+  
+  // Reset width constraints for accurate measurement
+  popup.style.width = 'auto';
+  popup.style.minWidth = 'auto';
+  popup.style.maxWidth = 'none';
+  popup.style.display = 'block';
+  popup.style.visibility = 'hidden';
+  
+  // Force a reflow to get accurate measurements
+  popup.offsetHeight;
+  
+  // Measure the actual content width
+  const contentWidth = popup.scrollWidth;
+  
+  // Calculate target width based on the longest line
+  const children = popup.children;
+  let maxLineWidth = 0;
+  
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i] as HTMLElement;
+    if (child.textContent) {
+      // Create a temporary span to measure text width
+      const tempSpan = document.createElement('span');
+      tempSpan.style.cssText = `
+        position: absolute;
+        visibility: hidden;
+        font: 11px system-ui;
+        white-space: nowrap;
+      `;
+      tempSpan.textContent = child.textContent;
+      document.body.appendChild(tempSpan);
+      
+      const textWidth = tempSpan.offsetWidth;
+      maxLineWidth = Math.max(maxLineWidth, textWidth);
+      
+      document.body.removeChild(tempSpan);
     }
-    else if(data.kind==="solar"){ 
-      pL1.textContent=`solar: ${data.powerW.toFixed(1)} W`; 
-      pL2.textContent=`V=${data.voltage.toFixed(2)} • I=${data.current.toFixed(2)} (est.)`; 
-    }
-    else { 
-      // برای temperature, humidity, co2
-      if ('value' in data && 'unit' in data) {
-        pL1.textContent=`${data.kind}: ${data.value.toFixed(2)} ${data.unit}`; 
-        pL2.textContent=data.roomId?`room: ${data.roomId}`:""; 
+  }
+  
+  // Use the longer of content width or longest line width
+  const actualWidth = Math.max(contentWidth, maxLineWidth);
+  const padding = 12; // Reduced padding
+  const targetWidth = Math.max(80, actualWidth + padding);
+  
+  // Set the calculated width
+  popup.style.width = `${targetWidth}px`;
+  popup.style.minWidth = '80px';
+  popup.style.maxWidth = '180px';
+  
+  // Restore visibility
+  popup.style.visibility = 'visible';
+  popup.style.display = originalDisplay || 'block';
+}
+
+// Update permanent popup content
+export function updatePermanentPopup(deviceId: string): void {
+  const popup = permanentPopups.get(deviceId);
+  if (!popup) {
+    return;
+  }
+  
+  const data = latestByDev.get(deviceId);
+  const elements = popup.children;
+  
+  if (elements.length >= 4) {
+    const pTitle = elements[0] as HTMLElement;
+    const pL1 = elements[1] as HTMLElement;
+    const pL2 = elements[2] as HTMLElement;
+    const pTs = elements[3] as HTMLElement;
+    
+    pTitle.textContent = deviceId;
+    
+    if (data) {
+      if (data.kind === "light") {
+        pL1.textContent = `${data.on ? "ON" : "OFF"} | ${data.powerW.toFixed(1)}W`;
+        pL2.textContent = data.roomId ? `Room: ${data.roomId}` : "";
+      } else if (data.kind === "solar") {
+        pL1.textContent = `${data.powerW.toFixed(1)}W | ${data.voltage.toFixed(1)}V`;
+        pL2.textContent = "";
       } else {
-        pL1.textContent=`${(data as any).kind}: no data`; 
-        pL2.textContent=(data as any).roomId?`room: ${(data as any).roomId}`:""; 
+        pL1.textContent = `${data.value.toFixed(1)} ${data.unit || ""}`;
+        pL2.textContent = data.roomId ? `Room: ${data.roomId}` : "";
       }
-    } 
-    pTs.textContent=`updated: ${new Date(data.ts).toLocaleTimeString()}`; 
+      pTs.textContent = new Date(data.ts).toLocaleTimeString();
   } else { 
-    pL1.textContent="no data yet"; 
-    pL2.textContent=""; 
-    pTs.textContent=""; 
-  } 
+      pL1.textContent = "No data";
+      pL2.textContent = "";
+      pTs.textContent = "";
+    }
+    
+    // Adjust width after content update
+    adjustPopupWidth(popup);
+  }
 }
 
-export function showPopupFor(deviceId:string, handle:BABYLON.AbstractMesh){ 
-  // متوقف کردن auto-update قبلی اگر وجود دارد
-  stopPopupAutoUpdate();
-  
-  popupDevId=deviceId; 
-  popupTarget=handle; 
-  renderPopupContent(); 
-  popup.style.display="block"; 
-  updatePopupPosition(); 
-  
-  // شروع auto-update برای tooltip
-  startPopupAutoUpdate();
+// Remove permanent popup
+export function removePermanentPopup(deviceId: string): void {
+  const popup = permanentPopups.get(deviceId);
+  if (popup) {
+    popup.remove();
+    permanentPopups.delete(deviceId);
+  }
 }
 
+// Update all permanent popups positions
+export function updateAllPermanentPopups(): void {
+  permanentPopups.forEach((popup, deviceId) => {
+    // Find handle by deviceId through sensors map
+    let handle: BABYLON.AbstractMesh | null = null;
+    for (const [sensorId, sensor] of sensors.entries()) {
+      if (sensor.deviceId === deviceId) {
+        handle = sensorHandles.get(sensorId) || null;
+        break;
+      }
+    }
+    
+    if (handle) {
+      const pos = handle.getAbsolutePosition();
+      const p = BABYLON.Vector3.Project(
+        pos, 
+        BABYLON.Matrix.Identity(), 
+        scene.getTransformMatrix(), 
+        camera.viewport.toGlobal(scene.getEngine().getRenderWidth(), scene.getEngine().getRenderHeight())
+      );
+      if (p) {
+        popup.style.left = Math.round(p.x + 16) + "px";
+        popup.style.top = Math.round(p.y - 16) + "px";
+      }
+    }
+  });
+}
+
+export function showPopupFor(_deviceId:string, _handle:BABYLON.AbstractMesh){ 
+  // Disabled - using permanent popups instead
+}
+
+// Legacy function - disabled
 export function updatePopupPosition(){ 
-  if(!popupTarget) return; 
-  const pos = popupTarget.getAbsolutePosition(); 
-  const p = BABYLON.Vector3.Project(pos, BABYLON.Matrix.Identity(), scene.getTransformMatrix(), camera.viewport.toGlobal(scene.getEngine().getRenderWidth(), scene.getEngine().getRenderHeight())); 
-  popup.style.left=Math.round(p.x+16)+"px"; 
-  popup.style.top=Math.round(p.y-16)+"px"; 
+  // Disabled - using permanent popups instead
 }
 
 export function hidePopup(){
-  popup.style.display = "none";
-  popupTarget = null;
-  popupDevId = null;
-  
-  // متوقف کردن auto-update
-  stopPopupAutoUpdate();
+  // Disabled - using permanent popups instead
 }
 
 // تابع تست برای tooltip
 export function testTooltip(deviceId: string) {
-  console.log(`[Tooltip Test] Testing tooltip for device: ${deviceId}`);
-  console.log(`[Tooltip Test] latestByDev size: ${latestByDev.size}`);
-  console.log(`[Tooltip Test] Available devices:`, Array.from(latestByDev.keys()));
-  
   const data = latestByDev.get(deviceId);
-  console.log(`[Tooltip Test] Data for ${deviceId}:`, data);
-  
   if (data) {
-    console.log(`[Tooltip Test] Data timestamp: ${new Date(data.ts).toLocaleTimeString()}`);
-    if ('value' in data && 'unit' in data) {
-      console.log(`[Tooltip Test] Data value: ${data.value} ${data.unit}`);
-    } else if (data.kind === 'light') {
-      console.log(`[Tooltip Test] Light data: ${data.on ? 'ON' : 'OFF'} | ${data.powerW}W`);
-    } else if (data.kind === 'solar') {
-      console.log(`[Tooltip Test] Solar data: ${data.powerW}W | ${data.voltage}V | ${data.current}A`);
-    }
-  } else {
-    console.log(`[Tooltip Test] No data found for device: ${deviceId}`);
+    console.log(`[Tooltip Test] Data for ${deviceId}:`, {
+      kind: data.kind,
+      value: 'value' in data ? data.value : 'N/A',
+      unit: 'unit' in data ? data.unit : 'N/A',
+      ts: new Date(data.ts).toLocaleTimeString(),
+      roomId: 'roomId' in data ? data.roomId : 'N/A'
+    });
   }
 }
 
 // تابع تست برای بررسی همه داده‌ها
 export function testAllData() {
-  console.log(`[Data Test] Total devices in latestByDev: ${latestByDev.size}`);
-  console.log(`[Data Test] All data:`, latestByDev);
+  console.log(`[Data Test] Total devices: ${latestByDev.size}`);
   
   for (const [deviceId, data] of latestByDev.entries()) {
     console.log(`[Data Test] ${deviceId}:`, {
       kind: data.kind,
-      timestamp: new Date(data.ts).toLocaleTimeString(),
-      hasValue: 'value' in data,
-      hasUnit: 'unit' in data,
-      data: data
+      timestamp: new Date(data.ts).toLocaleTimeString()
     });
   }
 }
 
 // تابع تست برای بررسی popup
 export function testPopup() {
-  console.log(`[Popup Test] popupDevId: ${popupDevId}`);
-  console.log(`[Popup Test] popupUpdateInterval: ${popupUpdateInterval}`);
-  console.log(`[Popup Test] popup.style.display: ${popup.style.display}`);
-  
-  if (popupDevId) {
-    const data = latestByDev.get(popupDevId);
-    console.log(`[Popup Test] Current popup data:`, data);
+  console.log(`[Popup Test] Permanent popups count: ${permanentPopups.size}`);
+}
+
+// Toggle all popups visibility
+export function toggleAllPopups(show: boolean): void {
+  popupsEnabled = show;
+  permanentPopups.forEach((popup, deviceId) => {
+    const individualEnabled = individualPopupStates.get(deviceId) ?? true;
+    popup.style.display = (show && individualEnabled) ? 'block' : 'none';
+  });
+}
+
+// Get popup visibility state
+export function arePopupsEnabled(): boolean {
+  return popupsEnabled;
+}
+
+// Toggle individual popup visibility
+export function toggleIndividualPopup(deviceId: string, show: boolean): void {
+  individualPopupStates.set(deviceId, show);
+  const popup = permanentPopups.get(deviceId);
+  if (popup) {
+    // Show only if both global and individual states are enabled
+    popup.style.display = (popupsEnabled && show) ? 'block' : 'none';
   }
 }
 
-// شروع auto-update برای tooltip
-function startPopupAutoUpdate() {
-  // اگر قبلاً interval فعال است، آن را پاک کن
-  stopPopupAutoUpdate();
-  
-  console.log(`[Tooltip] Starting auto-update for device: ${popupDevId}`);
-  
-  // هر 1 ثانیه tooltip را به‌روزرسانی کن
-  popupUpdateInterval = window.setInterval(() => {
-    if (popupDevId && popup.style.display !== "none") {
-      console.log(`[Tooltip] Auto-updating tooltip for device: ${popupDevId}`);
-      
-      // Debug: بررسی داده‌های موجود
-      const currentData = latestByDev.get(popupDevId);
-      console.log(`[Tooltip] Current data for ${popupDevId}:`, currentData);
-      
-      renderPopupContent();
-    }
-  }, 1000);
+// Get individual popup visibility state
+export function isIndividualPopupEnabled(deviceId: string): boolean {
+  return individualPopupStates.get(deviceId) ?? true; // Default to true
 }
 
-// متوقف کردن auto-update
-function stopPopupAutoUpdate() {
-  if (popupUpdateInterval) {
-    clearInterval(popupUpdateInterval);
-    popupUpdateInterval = null;
-  }
-}
+// Toggle sensor popup (for global access)
+(window as any).toggleSensorPopup = function(deviceId: string) {
+  const currentState = isIndividualPopupEnabled(deviceId);
+  toggleIndividualPopup(deviceId, !currentState);
+  updateSensorList(); // Refresh the UI to update eye button state
+};
+
+// Legacy functions removed - using permanent popups instead
 /** پاک‌سازی همه‌ی سنسورها از صحنه و state داخلیِ ماژول */
 export async function clearAllSensors(): Promise<void> {
-  // اگر رجیستری و هندل سنسورها دارید، همان را تمیز کنید:
-  // مثالِ محافظه‌کارانه:
-  try {
-    const anySelf = (globalThis as any);
-    const handles: any[] = anySelf.__sensorHandles ?? [];
-    for (const h of handles) {
-      try { h.getChildMeshes?.().forEach((m: any) => m.dispose()); } catch {}
-      try { h.dispose?.(); } catch {}
-    }
-    anySelf.__sensorHandles = [];
-    anySelf.__sensorMap = new Map();
-  } catch (e) {
-    console.warn("[Sensors] clearAllSensors:", e);
-  }
+  // حذف همه پاپ‌آپ‌های دائمی
+  permanentPopups.forEach((popup) => {
+    popup.remove();
+  });
+  permanentPopups.clear();
+  
+  // حذف همه وضعیت‌های فردی پاپ‌آپ‌ها
+  individualPopupStates.clear();
+  
+  // حذف همه سنسورها از maps
+  sensorHandles.forEach((handle) => {
+    try { 
+      handle.getChildMeshes().forEach(c => c.dispose()); 
+    } catch {}
+    try { 
+      handle.dispose(); 
+    } catch {}
+  });
+  sensorHandles.clear();
+  sensors.clear();
+  
+  // به‌روزرسانی لیست
+  updateSensorList();
 }
 
 /** ایجاد سنسور از داده‌ی ذخیره‌شده در project.json */
@@ -362,13 +544,27 @@ export function updateSensorList(): void {
   
   sensorList.innerHTML = sensorArray.map(sensor => {
     const isSelected = selectedId === sensor.id;
+    const isPopupEnabled = isIndividualPopupEnabled(sensor.deviceId);
     return `
       <div class="sensor-item ${isSelected ? 'selected' : ''}" data-sensor-id="${sensor.id}">
         <div class="sensor-info">
           <div class="sensor-name">${sensor.label}</div>
           <div class="sensor-details">${sensor.type} • ${sensor.deviceId}</div>
         </div>
-        <button class="sensor-delete" onclick="removeSensorById('${sensor.id}')">Delete</button>
+        <div class="sensor-actions">
+          <button class="sensor-eye ${isPopupEnabled ? 'enabled' : 'disabled'}" 
+                  onclick="toggleSensorPopup('${sensor.deviceId}')" 
+                  title="${isPopupEnabled ? 'Hide popup' : 'Show popup'}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+            </svg>
+          </button>
+          <button class="sensor-delete" onclick="removeSensorById('${sensor.id}')" title="Delete sensor">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+            </svg>
+          </button>
+        </div>
       </div>
     `;
   }).join('');
@@ -380,8 +576,10 @@ export function updateSensorList(): void {
 
     // Single click - select sensor
     item.addEventListener('click', (e) => {
-      // Prevent event bubbling if delete button was clicked
-      if ((e.target as HTMLElement).classList.contains('sensor-delete')) {
+      // Prevent event bubbling if delete button or eye button was clicked
+      if ((e.target as HTMLElement).classList.contains('sensor-delete') || 
+          (e.target as HTMLElement).classList.contains('sensor-eye') ||
+          (e.target as HTMLElement).closest('.sensor-eye')) {
         return;
       }
       
@@ -495,6 +693,12 @@ export function frameSensorById(sensorId: string): void {
     try { 
       h.dispose(); 
     } catch {}
+    
+    // حذف پاپ‌آپ دائمی
+    removePermanentPopup(s.deviceId);
+    
+    // حذف وضعیت فردی پاپ‌آپ
+    individualPopupStates.delete(s.deviceId);
     
     // حذف از maps
     sensorHandles.delete(id);
