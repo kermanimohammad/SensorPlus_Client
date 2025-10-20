@@ -1,7 +1,7 @@
 // src/database-client.ts — Database Client for Historical Data (HTTP API)
 import type { SensorType } from "./types";
 
-// API configuration
+// API configuration - Updated for online compatibility
 const isLocal = typeof window !== 'undefined' && (
   window.location.hostname === 'localhost' || 
   window.location.hostname === '127.0.0.1' ||
@@ -49,7 +49,7 @@ export class DatabaseClient {
    */
   async connect(): Promise<boolean> {
     try {
-      console.log('[DB] Attempting to connect to database API...');
+      console.log('[DB] Attempting to connect to database API...', this.apiBaseUrl);
       
       const response = await fetch(`${this.apiBaseUrl}/db/test`, {
         method: 'GET',

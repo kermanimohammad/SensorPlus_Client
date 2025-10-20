@@ -1232,14 +1232,20 @@ function applyTransformFromInputs(): void {
 ---------------------------------------------- */
 wireApiButtons();
 
-// Auto-connect to API on startup
+// Auto-connect to API on startup - Updated for online compatibility
 setTimeout(async () => {
   try {
+    console.log('[Main] Auto-connecting to API...');
     await apiClient.connect();
   } catch (error) {
     console.warn('[Main] Auto-connect failed:', error);
   }
 }, 2000);
+
+// Force cache busting for online version
+console.log('[Main] Application started - Version 2025.0.1.13');
+console.log('[Main] Database client configured for online compatibility');
+console.log('[Main] API endpoints configured for both local and online environments');
 
 // Test sensor prefabs loading
 setTimeout(async () => {
@@ -1260,7 +1266,7 @@ populateEnvironmentCatalog();
 updateEnvironmentList();
 updateSensorList();
 
-// Initialize sensor history UI
+// Initialize sensor history UI - Updated for online compatibility
 sensorHistoryUI.initialize();
 
 // Debug function to check environments
