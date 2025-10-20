@@ -50,6 +50,15 @@ export class DatabaseClient {
   async connect(): Promise<boolean> {
     try {
       console.log('[DB] Attempting to connect to database API...', this.apiBaseUrl);
+      console.log('[DB] Environment detection:', {
+        hostname: window.location.hostname,
+        protocol: window.location.protocol,
+        isLocal: typeof window !== 'undefined' && (
+          window.location.hostname === 'localhost' || 
+          window.location.hostname === '127.0.0.1' ||
+          window.location.protocol === 'file:'
+        )
+      });
       
       // Use health endpoint instead of /db/test
       const response = await fetch(`${this.apiBaseUrl.replace('/api', '')}/health`, {
