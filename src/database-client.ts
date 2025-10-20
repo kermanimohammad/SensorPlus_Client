@@ -73,7 +73,7 @@ export class DatabaseClient {
       });
       
       // FORCE ONLINE MODE - NO LOCALHOST ALLOWED
-      const targetUrl = 'https://digitaltwin-sensorplus-1.onrender.com/health';
+      const targetUrl = 'https://digitaltwin-sensorplus-1.onrender.com/api/proxy/data';
       console.log('[DB] CACHE BUSTING v2 - FORCING TARGET URL:', targetUrl);
       
       const response = await fetch(targetUrl, {
@@ -91,8 +91,8 @@ export class DatabaseClient {
       
       const result = await response.json();
       
-      // Check if server is responding
-      this.isConnected = result.status === 'ok' || result.success === true;
+      // Check if server is responding - for proxy/data endpoint, check success field
+      this.isConnected = result.success === true;
       
       if (this.isConnected) {
         console.log('[DB] Connected to database API successfully');
@@ -395,9 +395,9 @@ export class DatabaseClient {
    */
   async testConnection(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.apiBaseUrl.replace('/api', '')}/health`);
+      const response = await fetch(`${this.apiBaseUrl}/proxy/data`);
       const result = await response.json();
-      return result.status === 'ok' || result.success === true;
+      return result.success === true;
     } catch (error) {
       console.error('[DB] Connection test failed:', error);
       return false;
