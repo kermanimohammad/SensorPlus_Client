@@ -1,0 +1,10 @@
+<!-- favicon-mono.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Digital Twin Sensor Plus">
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#111827"/>
+  <path d="M10 38
+           C15 26, 19 26, 24 38
+           S30 50, 34 38
+           S38 26, 42 38
+           S46 50, 54 38" fill="none"
+        stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

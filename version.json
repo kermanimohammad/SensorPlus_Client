@@ -1,0 +1,59 @@
+{
+  "version": "2025.0.1.23",
+  "build": "2025.01.09",
+  "name": "DigitalTwin SensorPlus Backend",
+  "description": "Complete backend API with dashboard and frontend integration",
+  "features": [
+    "Real-time sensor simulation (21 devices across 5 rooms + solar farm)",
+    "MySQL database integration with auto-save every 5 minutes",
+    "Complete REST API with CORS support",
+    "Dashboard with blue control buttons",
+    "Frontend integration endpoints",
+    "Historical data access",
+    "Device management API",
+    "Health monitoring endpoints",
+    "Database status and debugging",
+    "Simulator control endpoints",
+    "Comprehensive error handling",
+    "Production-ready deployment",
+    "Fixed database connection for online version",
+    "Resolved API endpoint configuration issues",
+    "Updated database client to use /health endpoint for online compatibility",
+    "Added detailed logging for environment detection debugging",
+    "Fixed database client to force online mode for production",
+    "Added aggressive cache busting to force browser cache clear"
+  ],
+  "api": {
+    "base_url": "https://digitaltwin-sensorplus-1.onrender.com",
+    "endpoints": [
+      "/api/data",
+      "/api/proxy/data", 
+      "/api/health",
+      "/api/devices",
+      "/api/devices/<device_id>",
+      "/api/history/<sensor_type>/<device_id>",
+      "/api/database-status",
+      "/api/debug-database",
+      "/api/toggle-simulator",
+      "/health"
+    ],
+    "cors_enabled": true,
+    "supported_methods": ["GET", "POST", "OPTIONS"]
+  },
+  "database": {
+    "type": "MySQL",
+    "auto_save_interval": "5 minutes",
+    "tables": [
+      "temperature_data",
+      "humidity_data", 
+      "co2_data",
+      "light_data",
+      "solar_data"
+    ]
+  },
+  "deployment": {
+    "platform": "Render.com",
+    "status": "production_ready",
+    "last_deploy": "2025.01.09"
+  }
+}

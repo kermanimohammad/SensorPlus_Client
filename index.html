@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SensorPlus - EcoTwinAI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script type="module" crossorigin src="/assets/index-DL2kWd0Q.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DuBxPqZa.css">
+  </head>
+  <body>
+    
+      <!-- Tools Dock (horizontal top bar) -->
+      <div id="toolsDock" class="tools-dock horizontal" aria-label="Tools">
+        <button id="btnToolSelect" class="icon-btn" title="Select">
+          <img src="/icons/select.svg" alt="" class="icon" />
+        </button>
+        <button id="btnMove" class="icon-btn" title="Move">
+          <img src="/icons/move.svg" alt="" class="icon" />
+        </button>
+        <button id="btnToolRotate" class="icon-btn" title="Rotate">
+          <img src="/icons/rotate.svg" alt="" class="icon" />
+        </button>
+        <button id="btnToolScale" class="icon-btn" title="Scale">
+          <img src="/icons/scale.svg" alt="" class="icon" />
+        </button>
+        <button id="btnDelete" class="icon-btn" title="Delete">
+          <img src="/icons/delete.svg" alt="" class="icon" />
+        </button>
+      </div>
+
+      <!-- Transform Panel (center top) -->
+      <div id="transformPanel" class="transform-panel" style="display: none;">
+        <div class="transform-header">
+          <span class="transform-title">Transform</span>
+          <span class="transform-mode" id="transformMode">Position</span>
+        </div>
+        <div class="transform-inputs">
+          <div class="transform-input-group">
+            <label>X</label>
+            <input type="number" id="transformX" step="0.01" placeholder="0.00" />
+          </div>
+          <div class="transform-input-group">
+            <label>Y</label>
+            <input type="number" id="transformY" step="0.01" placeholder="0.00" />
+          </div>
+          <div class="transform-input-group">
+            <label>Z</label>
+            <input type="number" id="transformZ" step="0.01" placeholder="0.00" />
+          </div>
+        </div>
+      </div>
+      
+    
+
+    <!-- Drawer toggle -->
+    <button id="btnToggleDrawer" class="floating-open" title="Panels">
+      <img src="/icons/panels.svg" alt="" class="icon" />
+    </button>
+
+    <!-- Drawer -->
+    <aside id="drawer" class="drawer">
+      <div class="drawer-header">
+        <div class="drawer-title">Digital Twin Panels</div>
+        <button id="btnCloseDrawer" class="btn ghost" title="Close">
+          <img src="/icons/close.svg" alt="" class="icon" />
+        </button>
+      </div>
+
+      <div class="status-line">
+        <div id="connDot" class="dot" title="API status"></div>
+        <div>
+          <span id="status">disconnected</span> •
+          <small>Interval <code id="topicChip">5000ms</code></small>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab" data-tab="project">Project</div>
+        <div class="tab active" data-tab="scene">Scene</div>
+        <div class="tab" data-tab="connection">Connection</div>
+      </div>
+
+      <!-- ===================== SCENE ===================== -->
+      <section id="panel-scene" class="panel active">
+
+        <!-- Reset Scene Button -->
+        <div class="row">
+          <button id="btnResetScene" class="btn danger full">
+            <img src="/icons/clear.svg" alt="" class="icon" /> Reset Scene
+          </button>
+        </div>
+
+        <!-- 1) Environment -->
+        <div class="group">
+          <div class="group-head">
+            <div class="head-icon">
+              <img src="/icons/env.svg" alt="Environment Icon" />
+            </div>
+            <div class="head-title">
+              <div class="t1">Environment</div>
+              <div class="t2">GLB File & Catalog</div>
+            </div>
+          </div>
+
+          <!-- Environment Catalog -->
+          <div class="row">
+            <label>Environment Catalog</label>
+            <div class="select-line">
+              <select id="envCatalog">
+                <option value="">Select from catalog...</option>
+              </select>
+              <button id="btnAddFromCatalog" class="btn solid">
+                <img src="/icons/add.svg" alt="" class="icon" /> Add
+              </button>
+            </div>
+          </div>
+
+          <!-- Custom GLB Upload -->
+          <div class="row">
+            <label>Custom Environment (GLB)</label>
+            <label class="file-uploader">
+              <input id="envFile" type="file" accept=".glb" />
+              <span class="file-chip" data-default="Choose File">Choose File</span>
+              <span class="file-name">No file chosen</span>
+            </label>
+          </div>
+
+          <div class="row">
+            <label>Loaded Environments</label>
+            <div id="envList" class="list">
+              <div class="list-empty">No environments loaded</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2) Add Sensor -->
+        <div class="group">
+          <div class="group-head">
+            <div class="head-icon">
+              <img src="/icons/add.svg" alt="" />
+            </div>
+            <div class="head-title">
+              <div class="t1">Sensors</div>
+              <div class="t2">Catalog</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <label>Show Popups</label>
+            <div class="toggle-container">
+              <input type="checkbox" id="popupToggle" class="toggle" checked>
+              <label for="popupToggle" class="toggle-label">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="row">
+            <label>Sensor Catalog</label>
+            <div class="select-line">
+              <select id="catalog">
+                <option value="temperature" data-icon="/icons/temperature.svg">🌡️ Temperature</option>
+                <option value="humidity" data-icon="/icons/humidity.svg">💧 Humidity</option>
+                <option value="co2" data-icon="/icons/co2.svg">🌫️ CO₂</option>
+                <option value="light" data-icon="/icons/light.svg">💡 Light</option>
+                <option value="solar" data-icon="/icons/solar.svg">☀️ Solar</option>
+              </select>
+              <button id="btnAdd" class="btn solid">
+                <img src="/icons/add.svg" alt="" class="icon" /> Add Sensor
+              </button>
+            </div>
+          </div>
+
+          <div class="row">
+            <label>Loaded Sensors</label>
+            <div id="sensorList" class="list">
+              <div class="list-empty">No sensors loaded</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3) Properties Section -->
+        <div class="group" id="propertiesGroup" style="display: none;">
+          <div class="group-head">
+            <div class="head-icon">
+              <img src="/icons/bind.svg" alt="" />
+            </div>
+            <div class="head-title">
+              <div class="t1">Properties</div>
+              <div class="t2">Edit Selected</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <label>Label</label>
+            <input id="scene_p_label" type="text" placeholder="e.g., Temp – Room 101"/>
+          </div>
+          <div class="row inline">
+            <div>
+              <label>Device ID</label>
+              <input id="scene_p_device" type="text" placeholder="e.g., tmp-101"/>
+            </div>
+            <div>
+              <label>Topic (optional)</label>
+              <input id="scene_p_topic" type="text" placeholder="building/demo/room-1/temperature"/>
+            </div>
+          </div>
+          <div class="row inline">
+            <div>
+              <label>Color</label>
+              <input id="scene_p_color" type="color" value="#3a86ff"/>
+            </div>
+            <div>
+              <label>Scale</label>
+              <input id="scene_p_scale" type="number" step="0.1" value="1.0"/>
+            </div>
+          </div>
+          <div class="row">
+            <button id="scene_btnBind" class="btn primary full">
+              <img src="/icons/bind.svg" alt="" class="icon" /> Apply Changes
+            </button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ===================== PROJECT ===================== -->
+      <section id="panel-project" class="panel">
+        <div class="group">
+          <div class="group-head">
+            <div class="head-icon">
+              <img src="/icons/save.svg" alt="" />
+            </div>
+            <div class="head-title">
+              <div class="t1">Project</div>
+              <div class="t2">Save / Load</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <button id="btnSaveProject" class="btn primary full">
+              <img src="/icons/save.svg" alt="" class="icon" /> Save Project
+            </button>
+          </div>
+
+          <div class="row">
+            <label>Load Project</label>
+            <label class="file-uploader">
+              <input id="fileLoadProject" type="file" accept=".dtsp" />
+              <span class="file-chip" data-default="Choose File">Choose File</span>
+              <span class="file-name">No file chosen</span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ================= CONNECTION ================ -->
+      <section id="panel-connection" class="panel">
+        <div class="api-panel">
+          <div class="row">
+            <label>Server URL</label>
+            <input id="brokerUrl" type="text" value="https://digitaltwin-sensorplus-1.onrender.com" placeholder="https://digitaltwin-sensorplus-1.onrender.com"/>
+          </div>
+          <div class="row">
+            <label>Polling Interval (ms)</label>
+            <input id="brokerTopic" type="number" value="5000" placeholder="5000"/>
+          </div>
+          <div class="row inline">
+            <button id="btnReconnect" class="btn primary">
+              <img src="/icons/connect.svg" alt="" class="icon" /> Connect
+            </button>
+            <button id="btnDisconnect" class="btn">
+              <img src="/icons/disconnect.svg" alt="" class="icon" /> Disconnect
+            </button>
+          </div>
+          <div class="row">
+            <label>Discovered Devices</label>
+            <div id="deviceList" class="list"></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="drawer-footer">
+        <div class="footer-broker">Server:<code id="ws">https://digitaltwin-sensorplus-1.onrender.com</code></div>
+      </div>
+    </aside>
+
+    <!-- 3D host -->
+    <div id="app"></div>
+
+    <!-- API Client (no external dependencies needed) -->
+    <!-- App entry -->
+
+    <!-- Drawer/Tabs/Status + فایل‌نام آپلودر -->
+    <script>
+      const drawer = document.getElementById('drawer');
+      const btnToggle = document.getElementById('btnToggleDrawer');
+      const btnClose = document.getElementById('btnCloseDrawer');
+      const tabs = Array.from(document.querySelectorAll('.tab'));
+      const panels = {
+        project: document.getElementById('panel-project'),
+        scene: document.getElementById('panel-scene'),
+        connection: document.getElementById('panel-connection'),
+      };
+      function setActive(tabKey){
+        tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabKey));
+        Object.entries(panels).forEach(([k, el]) => el.classList.toggle('active', k === tabKey));
+      }
+      function updateFloatingButton() {
+        const isCollapsed = drawer.classList.contains('collapsed');
+        btnToggle.classList.toggle('show', isCollapsed);
+      }
+      tabs.forEach(t => t.addEventListener('click', () => setActive(t.dataset.tab)));
+      btnToggle.addEventListener('click', () => {
+        drawer.classList.toggle('collapsed');
+        updateFloatingButton();
+      });
+      btnClose.addEventListener('click', () => {
+        drawer.classList.add('collapsed');
+        updateFloatingButton();
+      });
+      if (window.innerWidth < 1100) {
+        drawer.classList.add('collapsed');
+      }
+      updateFloatingButton();
+
+      const topicInput = document.getElementById('brokerTopic');
+      const topicChip  = document.getElementById('topicChip');
+      topicInput.addEventListener('input', () => topicChip.textContent = topicInput.value || 'building/demo/#');
+
+      const statusEl = document.getElementById('status');
+      const dot = document.getElementById('connDot');
+      const obs = new MutationObserver(() => {
+        const ok = /connected/i.test(statusEl.textContent || '');
+        dot.classList.toggle('ok', ok);
+      });
+      obs.observe(statusEl, { childList:true, characterData:true, subtree:true });
+
+      // نمایش نام فایل در آپلودرهای گرافیکی
+      document.querySelectorAll('.file-uploader input[type="file"]').forEach(inp=>{
+        inp.addEventListener('change', ()=>{
+          const wrapper = inp.closest('.file-uploader');
+          const chip = wrapper.querySelector('.file-chip');
+          const name = wrapper.querySelector('.file-name');
+          const file = inp.files && inp.files[0];
+          name.textContent = file ? file.name : 'No file chosen';
+          chip.textContent = chip.getAttribute('data-default') || 'Choose File';
+        });
+      });
+
+      // حذف JavaScript برای نمایش نمادها در dropdown
+    </script>
+    
+    <!-- Version Number -->
+    <div id="versionNumber" class="version-number">
+        Development Version - 2025.0.1.16
+    </div>
+    
+    <script>
+      // بارگذاری ورژن از فایل JSON
+      async function loadVersion() {
+        try {
+          const response = await fetch('./version.json');
+          const versionData = await response.json();
+          const versionElement = document.getElementById('versionNumber');
+          if (versionElement) {
+            versionElement.textContent = `Development Version - ${versionData.version}`;
+            versionElement.title = `Build: ${versionData.build}\nFeatures: ${versionData.features.join(', ')}`;
+          }
+        } catch (error) {
+          console.warn('Could not load version.json:', error);
+        }
+      }
+      
+      // بارگذاری ورژن هنگام لود صفحه
+      loadVersion();
+    </script>
+  </body>
+</html>
