@@ -12,7 +12,7 @@ This folder contains all the necessary files for deploying the Digital Twin fron
 - `icons/` - All SVG icons
 - `models/` - All 3D model files (.glb)
 
-## Version: 2025.0.1.25
+## Version: 2025.0.1.26
 **Build Date:** $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 
 ## Deployment:
