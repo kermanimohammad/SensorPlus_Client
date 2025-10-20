@@ -1,5 +1,5 @@
 {
-  "version": "2025.0.1.19",
+  "version": "2025.0.1.20",
   "build": "2025.01.09",
   "name": "DigitalTwin SensorPlus Backend",
   "description": "Complete backend API with dashboard and frontend integration",
@@ -19,7 +19,8 @@
     "Fixed database connection for online version",
     "Resolved API endpoint configuration issues",
     "Updated database client to use /health endpoint for online compatibility",
-    "Added detailed logging for environment detection debugging"
+    "Added detailed logging for environment detection debugging",
+    "Fixed database client to force online mode for production"
   ],
   "api": {
     "base_url": "https://digitaltwin-sensorplus-1.onrender.com",
