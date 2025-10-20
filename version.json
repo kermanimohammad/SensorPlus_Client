@@ -1,5 +1,5 @@
 {
-  "version": "2025.0.1.20",
+  "version": "2025.0.1.21",
   "build": "2025.01.09",
   "name": "DigitalTwin SensorPlus Backend",
   "description": "Complete backend API with dashboard and frontend integration",

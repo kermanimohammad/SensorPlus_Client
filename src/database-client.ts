@@ -8,8 +8,9 @@ const isLocal = typeof window !== 'undefined' && (
   window.location.protocol === 'file:'
 );
 
-// Force online mode for production
+// Force online mode for production - CACHE BUSTING
 const API_BASE_URL = 'https://digitaltwin-sensorplus-1.onrender.com/api';
+console.log('[DB] CACHE BUSTING - Using online URL:', API_BASE_URL);
 
 // Force cache busting for online version
 console.log('[DB] Environment check:', { 
