@@ -9,6 +9,9 @@ const isLocal = typeof window !== 'undefined' && (
 );
 const API_BASE_URL = isLocal ? 'http://localhost:3001/api' : 'https://digitaltwin-sensorplus-1.onrender.com/api';
 
+// Force cache busting for online version
+console.log('[DB] Environment check:', { isLocal, hostname: window.location.hostname, protocol: window.location.protocol });
+
 // Historical data types
 export interface HistoricalDataPoint {
   timestamp: Date;
