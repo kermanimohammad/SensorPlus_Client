@@ -1242,8 +1242,8 @@ setTimeout(async () => {
   }
 }, 2000);
 
-// Force cache busting for online version
-console.log('[Main] Application started - Version 2025.0.1.13');
+// Application startup - Version 2025.0.1.13
+console.log('[Main] Application started - Version 2025.0.1.13 - Build:', Date.now());
 console.log('[Main] Database client configured for online compatibility');
 console.log('[Main] API endpoints configured for both local and online environments');
 
