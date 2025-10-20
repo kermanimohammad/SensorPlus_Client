@@ -87,11 +87,11 @@ export class DatabaseClient {
         )
       });
       
-      // Use environment detection like api-client
+      // Use environment detection for database connection
       const isLocal = window.location.hostname === 'localhost' || 
                      window.location.hostname === '127.0.0.1' ||
                      window.location.protocol === 'file:';
-      const targetUrl = isLocal ? 'http://localhost:3001/api/data' : 'https://digitaltwin-sensorplus-1.onrender.com/api/proxy/data';
+      const targetUrl =  'https://digitaltwin-sensorplus-1.onrender.com/health'; //isLocal ? 'http://localhost:3001/health' :
       console.log('[DB] Environment:', isLocal ? 'local' : 'online', 'Target URL:', targetUrl);
       
       const response = await fetch(targetUrl, {
@@ -109,8 +109,8 @@ export class DatabaseClient {
       
       const result = await response.json();
       
-      // Check if server is responding - for proxy/data endpoint, check success field
-      this.isConnected = result.success === true;
+      // Check if server is responding - for health endpoint, check status field
+      this.isConnected = result.status === 'ok' || result.success === true;
       
       if (this.isConnected) {
         console.log('[DB] Connected to database API successfully');
@@ -416,11 +416,11 @@ export class DatabaseClient {
       const isLocal = window.location.hostname === 'localhost' || 
                      window.location.hostname === '127.0.0.1' ||
                      window.location.protocol === 'file:';
-      const targetUrl = isLocal ? 'http://localhost:3001/api/data' : 'https://digitaltwin-sensorplus-1.onrender.com/api/proxy/data';
+      const targetUrl = isLocal ? 'http://localhost:3001/health' : 'https://digitaltwin-sensorplus-1.onrender.com/health';
       
       const response = await fetch(targetUrl);
       const result = await response.json();
-      return result.success === true;
+      return result.status === 'ok' || result.success === true;
     } catch (error) {
       console.error('[DB] Connection test failed:', error);
       return false;
