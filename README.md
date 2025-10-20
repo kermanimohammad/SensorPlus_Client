@@ -12,7 +12,14 @@ This folder contains all the necessary files for deploying the Digital Twin fron
 - `icons/` - All SVG icons
 - `models/` - All 3D model files (.glb)
 
-## Version: 2025.0.1.24
+## Version: 2025.0.1.25
+**Build Date:** $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 
 ## Deployment:
 Simply push the contents of this folder to your hosting platform or GitHub Pages.
+
+## Build Process:
+1. Version incremented in version.json and package.json
+2. `npm run build` executed
+3. All dist contents copied to frontend-build folder
+4. Ready for deployment
