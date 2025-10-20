@@ -1,5 +1,5 @@
 {
-  "version": "2025.0.1.11",
+  "version": "2025.0.1.12",
   "build": "2025.01.09",
   "name": "DigitalTwin SensorPlus Backend",
   "description": "Complete backend API with dashboard and frontend integration",
@@ -15,7 +15,9 @@
     "Database status and debugging",
     "Simulator control endpoints",
     "Comprehensive error handling",
-    "Production-ready deployment"
+    "Production-ready deployment",
+    "Fixed database connection for online version",
+    "Resolved API endpoint configuration issues"
   ],
   "api": {
     "base_url": "https://digitaltwin-sensorplus-1.onrender.com",
