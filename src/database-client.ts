@@ -57,6 +57,21 @@ export class DatabaseClient {
   }
 
   /**
+   * Get the appropriate API URL based on environment
+   */
+  private getApiUrl(endpoint: string): string {
+    const isLocal = window.location.hostname === 'localhost' || 
+                   window.location.hostname === '127.0.0.1' ||
+                   window.location.protocol === 'file:';
+    
+    if (isLocal) {
+      return `http://localhost:3001${endpoint}`;
+    } else {
+      return `https://digitaltwin-sensorplus-1.onrender.com${endpoint}`;
+    }
+  }
+
+  /**
    * Connect to the database API
    */
   async connect(): Promise<boolean> {
@@ -72,9 +87,12 @@ export class DatabaseClient {
         )
       });
       
-      // FORCE ONLINE MODE - NO LOCALHOST ALLOWED
-      const targetUrl = 'https://digitaltwin-sensorplus-1.onrender.com/health';
-      console.log('[DB] CACHE BUSTING v2 - FORCING TARGET URL:', targetUrl);
+      // Use environment detection like api-client
+      const isLocal = window.location.hostname === 'localhost' || 
+                     window.location.hostname === '127.0.0.1' ||
+                     window.location.protocol === 'file:';
+      const targetUrl = isLocal ? 'http://localhost:3001/api/data' : 'https://digitaltwin-sensorplus-1.onrender.com/api/proxy/data';
+      console.log('[DB] Environment:', isLocal ? 'local' : 'online', 'Target URL:', targetUrl);
       
       const response = await fetch(targetUrl, {
         method: 'GET',
@@ -91,8 +109,8 @@ export class DatabaseClient {
       
       const result = await response.json();
       
-      // Check if server is responding
-      this.isConnected = result.status === 'ok' || result.success === true;
+      // Check if server is responding - for proxy/data endpoint, check success field
+      this.isConnected = result.success === true;
       
       if (this.isConnected) {
         console.log('[DB] Connected to database API successfully');
@@ -144,7 +162,7 @@ export class DatabaseClient {
 
     try {
       const response = await fetch(
-        `${this.apiBaseUrl}/history/temperature/${deviceId}?hours=${hours}`
+        this.getApiUrl(`/api/history/temperature/${deviceId}?hours=${hours}`)
       );
       
       if (!response.ok) {
@@ -182,7 +200,7 @@ export class DatabaseClient {
 
     try {
       const response = await fetch(
-        `${this.apiBaseUrl}/history/humidity/${deviceId}?hours=${hours}`
+        this.getApiUrl(`/api/history/humidity/${deviceId}?hours=${hours}`)
       );
       
       if (!response.ok) {
@@ -220,7 +238,7 @@ export class DatabaseClient {
 
     try {
       const response = await fetch(
-        `${this.apiBaseUrl}/history/co2/${deviceId}?hours=${hours}`
+        this.getApiUrl(`/api/history/co2/${deviceId}?hours=${hours}`)
       );
       
       if (!response.ok) {
@@ -258,7 +276,7 @@ export class DatabaseClient {
 
     try {
       const response = await fetch(
-        `${this.apiBaseUrl}/history/light/${deviceId}?hours=${hours}`
+        this.getApiUrl(`/api/history/light/${deviceId}?hours=${hours}`)
       );
       
       if (!response.ok) {
@@ -297,7 +315,7 @@ export class DatabaseClient {
 
     try {
       const response = await fetch(
-        `${this.apiBaseUrl}/history/solar/${deviceId}?hours=${hours}`
+        this.getApiUrl(`/api/history/solar/${deviceId}?hours=${hours}`)
       );
       
       if (!response.ok) {
@@ -370,7 +388,7 @@ export class DatabaseClient {
     }
 
     try {
-      const response = await fetch(`${this.apiBaseUrl}/devices/${sensorType}`, {
+      const response = await fetch(this.getApiUrl(`/api/devices/${sensorType}`), {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -395,9 +413,14 @@ export class DatabaseClient {
    */
   async testConnection(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.apiBaseUrl.replace('/api', '')}/health`);
+      const isLocal = window.location.hostname === 'localhost' || 
+                     window.location.hostname === '127.0.0.1' ||
+                     window.location.protocol === 'file:';
+      const targetUrl = isLocal ? 'http://localhost:3001/api/data' : 'https://digitaltwin-sensorplus-1.onrender.com/api/proxy/data';
+      
+      const response = await fetch(targetUrl);
       const result = await response.json();
-      return result.status === 'ok' || result.success === true;
+      return result.success === true;
     } catch (error) {
       console.error('[DB] Connection test failed:', error);
       return false;
