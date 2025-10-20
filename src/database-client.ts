@@ -2,7 +2,12 @@
 import type { SensorType } from "./types";
 
 // API configuration
-const API_BASE_URL = 'http://localhost:3001/api';
+const isLocal = typeof window !== 'undefined' && (
+  window.location.hostname === 'localhost' || 
+  window.location.hostname === '127.0.0.1' ||
+  window.location.protocol === 'file:'
+);
+const API_BASE_URL = isLocal ? 'http://localhost:3001/api' : 'https://digitaltwin-sensorplus-1.onrender.com/api';
 
 // Historical data types
 export interface HistoricalDataPoint {
