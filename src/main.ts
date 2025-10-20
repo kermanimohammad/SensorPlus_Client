@@ -730,6 +730,9 @@ sceneBtnBind.addEventListener("click", () => {
   const s = sensors.get(id);
   if (!s) return;
   
+  // Store old deviceId to check if it changed
+  const oldDeviceId = s.deviceId;
+  
   s.label    = (document.getElementById("scene_p_label")  as HTMLInputElement).value || s.label;
   s.deviceId = (document.getElementById("scene_p_device") as HTMLInputElement).value || s.deviceId;
   s.topic    = (document.getElementById("scene_p_topic")  as HTMLInputElement).value || undefined;
@@ -740,7 +743,18 @@ sceneBtnBind.addEventListener("click", () => {
   h.scaling.setAll((s.scale ?? 1.0) * GLB_WORLD_SCALE);
   (h as any).metadata.deviceId = s.deviceId;
   
-  // Permanent popups are automatically updated
+  // If deviceId changed, remove old popup and create new one
+  if (oldDeviceId !== s.deviceId) {
+    console.log(`[Scene Properties] Device ID changed from ${oldDeviceId} to ${s.deviceId}`);
+    
+    // Remove old popup
+    removePermanentPopup(oldDeviceId);
+    
+    // Create new popup with new deviceId
+    createPermanentPopup(s.deviceId, h);
+    
+    console.log(`[Scene Properties] Popup updated for new device ID: ${s.deviceId}`);
+  }
   
   // ذخیره‌سازی دستی ترنسفورم‌ها
   persistPositionIfSensor();

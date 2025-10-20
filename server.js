@@ -92,10 +92,41 @@ app.get('/api/db/test', async (req, res) => {
   }
 });
 
+// Direct data endpoint for local development
+app.get('/api/data', async (req, res) => {
+  try {
+    const externalApiUrl = 'https://digitaltwin-sensorplus-1.onrender.com/api/proxy/data';
+    
+    const response = await fetch(externalApiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'DigitalTwin-Local-Proxy/1.0'
+      },
+      timeout: 30000
+    });
+
+    if (!response.ok) {
+      throw new Error(`External API returned ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    res.json(data);
+  } catch (error) {
+    console.error('[API] Failed to fetch external API:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch external API data',
+      details: error.message 
+    });
+  }
+});
+
 // Proxy endpoint for external API to avoid CORS issues
 app.get('/api/proxy/data', async (req, res) => {
   try {
-    const externalApiUrl = 'https://digitaltwin-sensorplus-1.onrender.com/api/data';
+    const externalApiUrl = 'https://digitaltwin-sensorplus-1.onrender.com/api/proxy/data';
     
     const response = await fetch(externalApiUrl, {
       method: 'GET',

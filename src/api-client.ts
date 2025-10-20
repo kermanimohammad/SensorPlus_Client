@@ -119,7 +119,7 @@ class DigitalTwinApiClient {
     const isLocal = window.location.hostname === 'localhost' || 
                    window.location.hostname === '127.0.0.1' ||
                    window.location.protocol === 'file:';
-    const proxyUrl = isLocal ? 'http://localhost:3001/api/proxy/data' : '/api/proxy/data';
+    const proxyUrl = isLocal ? 'http://localhost:3001/api/data' : '/api/proxy/data';
     
     console.log(`[API] Environment: ${isLocal ? 'local' : 'online'}, Proxy URL: ${proxyUrl}`);
     

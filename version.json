@@ -1,31 +1,53 @@
 {
-  "version": "2025.0.1.10",
+  "version": "2025.0.1.11",
   "build": "2025.01.09",
+  "name": "DigitalTwin SensorPlus Backend",
+  "description": "Complete backend API with dashboard and frontend integration",
   "features": [
-    "Environment Catalog (room1.glb - room5.glb)",
-    "Auto-selection for new models",
-    "Cross-selection between sensors and environments",
-    "Real-time sensor tooltips with API data",
-    "Project save/load with connection info",
-    "Green border selection highlighting",
-    "Robust polling mechanism with improved error handling",
-    "Database integration with historical data",
-    "Time-series charts for sensor data",
-    "Auto-connect to API on startup",
-    "Enhanced debugging and logging",
-    "Backend integration with CORS support",
-    "New API endpoints for frontend compatibility",
-    "Enhanced sensor history functionality"
+    "Real-time sensor simulation (21 devices across 5 rooms + solar farm)",
+    "MySQL database integration with auto-save every 5 minutes",
+    "Complete REST API with CORS support",
+    "Dashboard with blue control buttons",
+    "Frontend integration endpoints",
+    "Historical data access",
+    "Device management API",
+    "Health monitoring endpoints",
+    "Database status and debugging",
+    "Simulator control endpoints",
+    "Comprehensive error handling",
+    "Production-ready deployment"
   ],
   "api": {
-    "endpoint": "https://digitaltwin-sensorplus-1.onrender.com/api/proxy/data",
-    "polling_interval": "5000ms",
-    "supported_devices": [
-      "temp-1", "temp-2", "temp-3", "temp-4", "temp-5",
-      "hum-1", "hum-2", "hum-3", "hum-4", "hum-5", 
-      "co2-1", "co2-2", "co2-3", "co2-4", "co2-5",
-      "light-1", "light-2", "light-3", "light-4", "light-5",
-      "solar-plant"
+    "base_url": "https://digitaltwin-sensorplus-1.onrender.com",
+    "endpoints": [
+      "/api/data",
+      "/api/proxy/data", 
+      "/api/health",
+      "/api/devices",
+      "/api/devices/<device_id>",
+      "/api/history/<sensor_type>/<device_id>",
+      "/api/database-status",
+      "/api/debug-database",
+      "/api/toggle-simulator",
+      "/health"
+    ],
+    "cors_enabled": true,
+    "supported_methods": ["GET", "POST", "OPTIONS"]
+  },
+  "database": {
+    "type": "MySQL",
+    "auto_save_interval": "5 minutes",
+    "tables": [
+      "temperature_data",
+      "humidity_data", 
+      "co2_data",
+      "light_data",
+      "solar_data"
     ]
+  },
+  "deployment": {
+    "platform": "Render.com",
+    "status": "production_ready",
+    "last_deploy": "2025.01.09"
   }
 }
