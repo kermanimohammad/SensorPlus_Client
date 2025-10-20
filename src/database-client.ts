@@ -51,7 +51,8 @@ export class DatabaseClient {
     try {
       console.log('[DB] Attempting to connect to database API...', this.apiBaseUrl);
       
-      const response = await fetch(`${this.apiBaseUrl}/db/test`, {
+      // Use health endpoint instead of /db/test
+      const response = await fetch(`${this.apiBaseUrl.replace('/api', '')}/health`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -66,12 +67,13 @@ export class DatabaseClient {
       
       const result = await response.json();
       
-      this.isConnected = result.connected;
+      // Check if server is responding
+      this.isConnected = result.status === 'ok' || result.success === true;
       
       if (this.isConnected) {
         console.log('[DB] Connected to database API successfully');
       } else {
-        console.error('[DB] Database API connection failed:', result.error);
+        console.error('[DB] Database API connection failed:', result);
       }
       
       return this.isConnected;
@@ -81,7 +83,7 @@ export class DatabaseClient {
       
       // Provide more specific error messages
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        console.error('[DB] Network error - is the server running on port 3001?');
+        console.error('[DB] Network error - check server URL and connectivity');
       } else if (error instanceof Error && error.name === 'AbortError') {
         console.error('[DB] Connection timeout - server may be slow to respond');
       }
@@ -369,9 +371,9 @@ export class DatabaseClient {
    */
   async testConnection(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/db/test`);
+      const response = await fetch(`${this.apiBaseUrl.replace('/api', '')}/health`);
       const result = await response.json();
-      return result.connected;
+      return result.status === 'ok' || result.success === true;
     } catch (error) {
       console.error('[DB] Connection test failed:', error);
       return false;
