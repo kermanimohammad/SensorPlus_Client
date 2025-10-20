@@ -8,9 +8,10 @@ const isLocal = typeof window !== 'undefined' && (
   window.location.protocol === 'file:'
 );
 
-// Force online mode for production - CACHE BUSTING
+// Force online mode for production - CACHE BUSTING v2
 const API_BASE_URL = 'https://digitaltwin-sensorplus-1.onrender.com/api';
-console.log('[DB] CACHE BUSTING - Using online URL:', API_BASE_URL);
+console.log('[DB] CACHE BUSTING v2 - FORCING ONLINE MODE:', API_BASE_URL);
+console.log('[DB] CACHE BUSTING v2 - NO LOCALHOST ALLOWED');
 
 // Force cache busting for online version
 console.log('[DB] Environment check:', { 
@@ -60,8 +61,8 @@ export class DatabaseClient {
    */
   async connect(): Promise<boolean> {
     try {
-      console.log('[DB] Attempting to connect to database API...', this.apiBaseUrl);
-      console.log('[DB] Environment detection:', {
+      console.log('[DB] CACHE BUSTING v2 - Attempting to connect to database API...', this.apiBaseUrl);
+      console.log('[DB] CACHE BUSTING v2 - Environment detection:', {
         hostname: window.location.hostname,
         protocol: window.location.protocol,
         isLocal: typeof window !== 'undefined' && (
@@ -71,8 +72,11 @@ export class DatabaseClient {
         )
       });
       
-      // Use health endpoint instead of /db/test
-      const response = await fetch(`${this.apiBaseUrl.replace('/api', '')}/health`, {
+      // FORCE ONLINE MODE - NO LOCALHOST ALLOWED
+      const targetUrl = 'https://digitaltwin-sensorplus-1.onrender.com/health';
+      console.log('[DB] CACHE BUSTING v2 - FORCING TARGET URL:', targetUrl);
+      
+      const response = await fetch(targetUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
