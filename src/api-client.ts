@@ -115,8 +115,13 @@ class DigitalTwinApiClient {
    * Fetch current sensor data from API using local proxy
    */
   private async fetchSensorData(): Promise<ApiResponse | null> {
-    // Use local proxy to avoid CORS issues
-    const proxyUrl = 'http://localhost:3001/api/proxy/data';
+    // Detect if running locally or online
+    const isLocal = window.location.hostname === 'localhost' || 
+                   window.location.hostname === '127.0.0.1' ||
+                   window.location.protocol === 'file:';
+    const proxyUrl = isLocal ? 'http://localhost:3001/api/proxy/data' : '/api/proxy/data';
+    
+    console.log(`[API] Environment: ${isLocal ? 'local' : 'online'}, Proxy URL: ${proxyUrl}`);
     
     
     try {
@@ -142,6 +147,10 @@ class DigitalTwinApiClient {
       
     } catch (error) {
       console.error('[API] Proxy connection failed:', error);
+      // If local proxy fails, try direct connection immediately
+      if (isLocal) {
+        console.log('[API] Local proxy failed, trying direct connection...');
+      }
     }
     
     // Fallback to direct connection
