@@ -21,12 +21,14 @@ function initializeApiUI(): void {
     topicLabel.textContent = "Polling Interval (ms):";
   }
   
-  // Set default values
+  // Set default values for online server
   serverUrlInput.value = "https://digitaltwin-sensorplus-1.onrender.com";
   serverUrlInput.placeholder = "https://digitaltwin-sensorplus-1.onrender.com";
   
   pollingIntervalInput.value = "5000";
   pollingIntervalInput.placeholder = "5000";
+  
+  console.log("[API-UI] Initialized with online server URL");
   
   // Update button labels
   const connectBtn = document.getElementById("btnReconnect");
@@ -48,29 +50,67 @@ function setStatus(status: string): void {
 function renderDeviceList(): void {
   deviceList.innerHTML = "";
   if (discovered.size === 0) {
-    deviceList.textContent = "(no devices yet)";
+    deviceList.innerHTML = '<div class="list-empty">No devices discovered yet</div>';
     return;
   }
   
+  console.log(`[API-UI] Rendering ${discovered.size} discovered devices`);
+  
+  // Group devices by type
+  const devicesByType: Record<string, string[]> = {};
   [...discovered].sort().forEach(id => {
-    const chip = document.createElement("span");
-    chip.className = "chip";
-    chip.textContent = id;
-    chip.title = "Click to use this as Device ID for the selected sensor";
-    chip.style.cursor = "pointer";
-    chip.onclick = () => {
-      const inp = document.getElementById("p_device") as HTMLInputElement | null;
-      if (inp) inp.value = id;
-    };
-    deviceList.appendChild(chip);
+    const type = id.split('-')[0]; // Extract type from device_id (e.g., "temp" from "temp-1")
+    if (!devicesByType[type]) {
+      devicesByType[type] = [];
+    }
+    devicesByType[type].push(id);
+  });
+  
+  // Render devices grouped by type
+  Object.entries(devicesByType).forEach(([type, devices]) => {
+    const typeHeader = document.createElement("div");
+    typeHeader.className = "device-type-header";
+    typeHeader.textContent = `${type.toUpperCase()} (${devices.length})`;
+    typeHeader.style.cssText = `
+      font-weight: 600;
+      color: #6366f1;
+      margin: 8px 0 4px 0;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    `;
+    deviceList.appendChild(typeHeader);
+    
+    devices.forEach(id => {
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.textContent = id;
+      chip.title = `Click to use ${id} as Device ID for the selected sensor`;
+      chip.style.cursor = "pointer";
+      chip.style.margin = "2px";
+      chip.onclick = () => {
+        const inp = document.getElementById("scene_p_device") as HTMLInputElement | null;
+        if (inp) {
+          inp.value = id;
+          console.log(`[API-UI] Selected device: ${id}`);
+        }
+      };
+      deviceList.appendChild(chip);
+    });
   });
 }
 
 function updateDiscoveredDevices(): void {
   const devices = apiClient.getDiscoveredDevices();
+  const previousCount = discovered.size;
+  
   discovered.clear();
   devices.forEach(device => discovered.add(device));
-  renderDeviceList();
+  
+  if (discovered.size !== previousCount) {
+    console.log(`[API-UI] Discovered devices updated: ${discovered.size} devices`);
+    renderDeviceList();
+  }
 }
 
 export function connectToApi(): void {
@@ -82,6 +122,9 @@ export function connectToApi(): void {
     return;
   }
   
+  console.log(`[API-UI] Connecting to: ${url}`);
+  setStatus("connecting...");
+  
   // Update client configuration
   apiClient.updateServerUrl(url);
   apiClient.updatePollingInterval(interval);
@@ -90,10 +133,13 @@ export function connectToApi(): void {
   apiClient.connect()
     .then(() => {
       setStatus("connected");
+      console.log("[API-UI] Successfully connected to online server");
+      
+      // Update discovered devices immediately
       updateDiscoveredDevices();
       
       // Update discovered devices periodically
-      setInterval(updateDiscoveredDevices, 10000); // Every 10 seconds
+      setInterval(updateDiscoveredDevices, 5000); // Every 5 seconds to match API polling
     })
     .catch((error) => {
       setStatus(`error: ${error.message}`);

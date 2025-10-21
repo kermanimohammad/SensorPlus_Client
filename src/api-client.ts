@@ -1,6 +1,9 @@
 // src/api-client.ts — DigitalTwin SensorPlus API Client
-import { sensors, sensorHandles, applyReadingToSensor, latestByDev } from "./sensors";
+import { sensors, sensorHandles, applyReadingToSensor } from "./sensors";
 import type { Reading } from "./types";
+
+// Store latest readings from API
+export const latestByDev = new Map<string, Reading>();
 
 // API Response Types based on AI Integration Guide
 export interface DeviceData {
@@ -29,6 +32,25 @@ export interface ApiResponse {
   simulator_running?: boolean;
   timestamp?: string;
   uptime?: number;
+}
+
+// History Data Types
+export interface HistoryDataPoint {
+  timestamp: string;
+  value: number;
+  unit?: string;
+}
+
+export interface HistoryResponse {
+  success: boolean;
+  device_id: string;
+  sensor_type: string;
+  data: HistoryDataPoint[];
+  total_points?: number;
+  time_range?: {
+    start: string;
+    end: string;
+  };
 }
 
 class DigitalTwinApiClient {
@@ -115,13 +137,10 @@ class DigitalTwinApiClient {
    * Fetch current sensor data from API using local proxy
    */
   private async fetchSensorData(): Promise<ApiResponse | null> {
-    // Detect if running locally or online
-    const isLocal = window.location.hostname === 'localhost' || 
-                   window.location.hostname === '127.0.0.1' ||
-                   window.location.protocol === 'file:';
-    const proxyUrl = isLocal ? 'http://localhost:3001/api/data' : 'https://digitaltwin-sensorplus-1.onrender.com/api/proxy/data';
+    // Use the configured base URL
+    const proxyUrl = `${this.baseUrl}/api/proxy/data`;
     
-    console.log(`[API] Environment: ${isLocal ? 'local' : 'online'}, Proxy URL: ${proxyUrl}`);
+    console.log(`[API] Using server: ${proxyUrl}`);
     
     
     try {
@@ -147,10 +166,7 @@ class DigitalTwinApiClient {
       
     } catch (error) {
       console.error('[API] Proxy connection failed:', error);
-      // If local proxy fails, try direct connection immediately
-      if (isLocal) {
-        console.log('[API] Local proxy failed, trying direct connection...');
-      }
+      console.log('[API] Trying direct connection...');
     }
     
     // Fallback to direct connection
@@ -236,6 +252,14 @@ class DigitalTwinApiClient {
    * Process sensor data and update visualizations
    */
   private processSensorData(data: ApiResponse): void {
+    // Check if data and devices exist
+    if (!data || !data.devices || typeof data.devices !== 'object') {
+      console.warn('[API] No devices data received:', data);
+      return;
+    }
+    
+    console.log('[API] Processing sensor data:', Object.keys(data.devices).length, 'devices');
+    
     // Update latest readings
     for (const [deviceId, deviceData] of Object.entries(data.devices)) {
       const reading = this.convertToReading(deviceData);
@@ -347,9 +371,12 @@ class DigitalTwinApiClient {
       this.pollingInterval = null;
     }
     
+    // Clear all sensor data
+    latestByDev.clear();
+    
     this.isConnected = false;
     this.setStatus('disconnected');
-    console.log('[API] Disconnected');
+    console.log('[API] Disconnected and cleared sensor data');
   }
 
   /**
@@ -563,6 +590,42 @@ class DigitalTwinApiClient {
     this.retryCount = 0;
     this.isConnected = false;
     await this.connect();
+  }
+
+  /**
+   * Fetch historical data for a specific sensor
+   */
+  public async fetchHistoryData(sensorType: string, deviceId: string): Promise<HistoryResponse | null> {
+    const historyUrl = `${this.baseUrl}/api/history/${sensorType}/${deviceId}`;
+    
+    console.log(`[API] Fetching history for ${sensorType}/${deviceId}: ${historyUrl}`);
+    
+    try {
+      const response = await fetch(historyUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(30000) // 30 second timeout
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data: HistoryResponse = await response.json();
+      
+      if (!data.success) {
+        throw new Error('API returned success: false');
+      }
+
+      console.log(`[API] History data received: ${data.data?.length || 0} points`);
+      return data;
+      
+    } catch (error) {
+      console.error('[API] History fetch failed:', error);
+      return null;
+    }
   }
 
 

@@ -1,5 +1,6 @@
 // mqtt.ts (fixed)
-import { sensors, sensorHandles, applyReadingToSensor, latestByDev } from "./sensors";
+import { sensors, sensorHandles, applyReadingToSensor } from "./sensors";
+import { latestByDev } from "./api-client";
 import type { Reading } from "./types";
 
 let client: any = null;

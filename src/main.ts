@@ -1,6 +1,7 @@
 // src/main.ts — save to folder (FS Access) + existing features
 import * as BABYLON from "@babylonjs/core";
 import "@babylonjs/loaders";
+import "./style.css";
 import { loadProjectFromDtsp } from "./project";
 
 // scene
@@ -29,7 +30,6 @@ import {
   updateAllPermanentPopups,
   removePermanentPopup,
   createPermanentPopup,
-  toggleAllPopups,
   clearAllSensors,
 } from "./sensors";
 
@@ -52,8 +52,9 @@ import {
 import { wireApiButtons } from "./api-ui";
 import { apiClient } from "./api-client";
 
-// sensor history
-import { sensorHistoryUI } from "./sensor-history-ui";
+
+// history UI
+import { initializeHistoryUI } from "./history-ui";
 
 // project
 import {
@@ -81,6 +82,12 @@ function populateEnvironmentCatalog(): void {
     option.value = env.id;
     option.textContent = `${env.name} (${env.category})`;
     option.title = env.description;
+    
+    // تنظیم Room 1 به عنوان پیش‌فرض
+    if (env.id === 'room1') {
+      option.selected = true;
+    }
+    
     envCatalogSelect.appendChild(option);
   });
 }
@@ -299,7 +306,7 @@ const btnAddFromCatalog = document.getElementById("btnAddFromCatalog") as HTMLBu
 
 // project panel
 const btnSaveProject   = document.getElementById("btnSaveProject") as HTMLButtonElement;
-const fileLoadProject = document.getElementById("fileLoadProject") as HTMLInputElement | null;
+const btnLoadProject = document.getElementById("btnLoadProject") as HTMLButtonElement | null;
 
 // scene properties panel
 const sceneBtnBind = document.getElementById("scene_btnBind") as HTMLButtonElement;
@@ -862,25 +869,41 @@ btnSaveProject?.addEventListener("click", async () => {
   }
 });
 
-fileLoadProject?.addEventListener("change", async () => {
-  const f = fileLoadProject.files?.[0];
-  if (!f) return;
-  
-const name = f.name.toLowerCase();
-try {
-  if (name.endsWith(".dtsp")) {
-    await loadProjectFromDtsp(f);
-  } else {
-    await loadProjectFromFile(f as any);
+btnLoadProject?.addEventListener("click", async () => {
+  try {
+    // Create file input dynamically
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.dtsp';
+    fileInput.style.display = 'none';
+    document.body.appendChild(fileInput);
+    
+    fileInput.click();
+    
+    fileInput.addEventListener('change', async () => {
+      const f = fileInput.files?.[0];
+      if (!f) return;
+      
+      const name = f.name.toLowerCase();
+      try {
+        if (name.endsWith(".dtsp")) {
+          await loadProjectFromDtsp(f);
+        } else {
+          await loadProjectFromFile(f as any);
+        }
+      } catch (err: any) {
+        console.error("[LoadProject] failed:", err);
+        alert("Load failed: " + (err?.message || err));
+      } finally {
+        // Clean up
+        document.body.removeChild(fileInput);
+      }
+    });
+  } catch (err: any) {
+    console.error("[LoadProject] failed:", err);
+    alert("Load failed: " + (err?.message || err));
   }
-} catch (err:any) {
-  console.error("[LoadProject] failed:", err);
-  alert("Load failed: " + (err?.message || err));
-} finally {
-  (fileLoadProject as any).value = "";
-}
-}
-);
+});
 
 /* ---------------------------------------------
    Camera framing (double-click)
@@ -1137,17 +1160,27 @@ document.addEventListener("keydown", (event) => {
 //   });
 // }
 
-// Popup Toggle
-const popupToggle = document.getElementById('popupToggle') as HTMLInputElement;
-popupToggle?.addEventListener('change', (e) => {
-  const target = e.target as HTMLInputElement;
-  toggleAllPopups(target.checked);
-});
+// Popup Toggle - Removed (no longer needed)
+// const popupToggle = document.getElementById('popupToggle') as HTMLInputElement;
+// popupToggle?.addEventListener('change', (e) => {
+//   const target = e.target as HTMLInputElement;
+//   toggleAllPopups(target.checked);
+// });
 
 // Reset Scene Button
 const btnResetScene = document.getElementById('btnResetScene') as HTMLButtonElement;
 btnResetScene?.addEventListener("click", async () => {
   await resetScene();
+});
+
+// Show History Button
+const btnShowHistory = document.getElementById('scene_btnHistory') as HTMLButtonElement;
+btnShowHistory?.addEventListener("click", async () => {
+  if ((window as any).showSensorHistory) {
+    await (window as any).showSensorHistory();
+  } else {
+    console.error('[Main] showSensorHistory function not available');
+  }
 });
 
 // Transform Panel Input Listeners
@@ -1232,20 +1265,23 @@ function applyTransformFromInputs(): void {
 ---------------------------------------------- */
 wireApiButtons();
 
-// Auto-connect to API on startup - Updated for online compatibility
-setTimeout(async () => {
-  try {
-    console.log('[Main] Auto-connecting to API...');
-    await apiClient.connect();
-  } catch (error) {
-    console.warn('[Main] Auto-connect failed:', error);
-  }
-}, 2000);
+// Auto-connect disabled - Use Connection tab to connect manually
+// setTimeout(async () => {
+//   try {
+//     console.log('[Main] Auto-connecting to API...');
+//     await apiClient.connect();
+//   } catch (error) {
+//     console.warn('[Main] Auto-connect failed:', error);
+//   }
+// }, 2000);
 
 // Application startup - Version 2025.0.1.13
 console.log('[Main] Application started - Version 2025.0.1.16 - Build:', Date.now());
 console.log('[Main] Database client configured for online compatibility');
 console.log('[Main] API endpoints configured for both local and online environments');
+
+// Initialize history UI
+initializeHistoryUI();
 
 // Test sensor prefabs loading
 setTimeout(async () => {
@@ -1266,8 +1302,6 @@ populateEnvironmentCatalog();
 updateEnvironmentList();
 updateSensorList();
 
-// Initialize sensor history UI - Updated for online compatibility
-sensorHistoryUI.initialize();
 
 // Debug function to check environments
 (window as any).debugEnvironments = () => {

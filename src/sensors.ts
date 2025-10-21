@@ -8,7 +8,8 @@ import { updateEnvironmentList } from "./env";
 export const sensors = new Map<string, SensorNode>();
 export const sensorHandles = new Map<string, BABYLON.AbstractMesh>();
 export let selectedId: string | null = null;
-export const latestByDev = new Map<string, Reading>();
+// Import latestByDev from api-client
+import { latestByDev } from "./api-client";
 
 const modelUrlByType: Partial<Record<SensorType, string>> = {
   temperature: "/models/temperature.glb",
