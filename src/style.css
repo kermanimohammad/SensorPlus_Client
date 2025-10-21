@@ -877,13 +877,30 @@ input[type="color"]::-webkit-color-swatch {
 
 .sensor-delete,
 .env-delete {
-  background: rgba(239, 68, 68, 0.1);
+  background: rgba(255, 255, 255, 0.1);
   color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 .sensor-delete:hover,
 .env-delete:hover {
   background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  transform: scale(1.05);
+}
+
+.sensor-delete .icon,
+.env-delete .icon {
+  width: 16px;
+  height: 16px;
+  filter: brightness(0) saturate(100%) invert(27%) sepia(51%) saturate(2878%) hue-rotate(346deg) brightness(104%) contrast(97%);
+  transition: all 0.2s ease;
+}
+
+.sensor-delete:hover .icon,
+.env-delete:hover .icon {
+  filter: brightness(0) saturate(100%) invert(27%) sepia(51%) saturate(2878%) hue-rotate(346deg) brightness(120%) contrast(120%);
+  transform: scale(1.1);
 }
 
 /* Chips */

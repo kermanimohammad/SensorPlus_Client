@@ -376,7 +376,9 @@ export function updateEnvironmentList(): void {
     return `
       <div class="env-item ${isSelected ? 'selected' : ''}" data-env-id="${env.id}">
         <span class="env-name">${env.name}</span>
-        <button class="env-delete" onclick="removeEnvironmentById('${env.id}')">Delete</button>
+        <button class="env-delete" onclick="removeEnvironmentById('${env.id}')" title="Delete Environment">
+          <img src="/icons/delete.svg" alt="Delete" class="icon" />
+        </button>
       </div>
     `;
   }).join('');
