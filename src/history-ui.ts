@@ -41,10 +41,10 @@ export function initializeHistoryUI(): void {
     background: linear-gradient(180deg, rgba(15, 15, 35, 0.95) 0%, rgba(10, 10, 25, 0.98) 100%);
     border-radius: 20px;
     padding: 30px;
-    max-width: 90vw;
-    max-height: 90vh;
-    width: 800px;
-    height: 600px;
+    max-width: 95vw;
+    max-height: 95vh;
+    width: 1600px;
+    height: 1200px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     position: relative;
@@ -421,12 +421,23 @@ function displayHistoryChart(historyData: HistoryResponse): void {
     background: rgba(0, 0, 0, 0.3);
     border-radius: 10px;
   `;
+  // Calculate range info for display
+  let rangeInfo = '';
+  if (historyData.data.length > 0) {
+    const values = historyData.data.map(d => d.value);
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+    const avgValue = values.reduce((sum, val) => sum + val, 0) / values.length;
+    
+    rangeInfo = ` • Range: ${minValue.toFixed(1)} - ${maxValue.toFixed(1)} • Avg: ${avgValue.toFixed(1)}`;
+  }
+
   info.innerHTML = `
     <div style="font-size: 18px; font-weight: 600; margin-bottom: 10px;">
       ${historyData.sensor_type.toUpperCase()} - ${historyData.device_id}
     </div>
     <div style="font-size: 14px; color: rgba(255, 255, 255, 0.7);">
-      ${historyData.data.length} data points
+      ${historyData.data.length} data points${rangeInfo}
       ${historyData.time_range ? ` • ${new Date(historyData.time_range.start).toLocaleString()} - ${new Date(historyData.time_range.end).toLocaleString()}` : ''}
     </div>
   `;
@@ -440,34 +451,46 @@ function displayHistoryChart(historyData: HistoryResponse): void {
     padding: 20px;
     position: relative;
     overflow: hidden;
-  `;
-
-  // Create SVG chart
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('width', '100%');
-  svg.setAttribute('height', '100%');
-  svg.style.cssText = `
-    background: rgba(0, 0, 0, 0.1);
-    border-radius: 8px;
+    min-height: 800px;
+    height: 1000px;
   `;
 
   if (historyData.data.length > 0) {
-    // Calculate chart dimensions
-    const padding = 40;
-    const width = 700;
-    const height = 300;
+    // Calculate chart dimensions (much larger)
+    const padding = 100;
+    const width = 1800;
+    const height = 900;
+
+    // Create SVG chart
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '100%');
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.style.cssText = `
+      background: rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+      cursor: crosshair;
+    `;
     
-    // Find min/max values
+    // Find min/max values with smart range calculation
     const values = historyData.data.map(d => d.value);
     const minValue = Math.min(...values);
     const maxValue = Math.max(...values);
-    const valueRange = maxValue - minValue;
     
-    // Create line path
+    // Calculate smart range with padding
+    const valueRange = maxValue - minValue;
+    const paddingPercent = valueRange > 0 ? 0.1 : 0.2; // 10% padding if range > 0, 20% if range = 0
+    const rangePadding = Math.max(valueRange * paddingPercent, Math.abs(minValue) * 0.1, 1);
+    
+    const smartMinValue = minValue - rangePadding;
+    const smartMaxValue = maxValue + rangePadding;
+    const smartValueRange = smartMaxValue - smartMinValue;
+    
+    // Create line path using smart range
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     const points = historyData.data.map((point, index) => {
       const x = padding + (index / (historyData.data.length - 1)) * (width - 2 * padding);
-      const y = padding + (1 - (point.value - minValue) / valueRange) * (height - 2 * padding);
+      const y = padding + (1 - (point.value - smartMinValue) / smartValueRange) * (height - 2 * padding);
       return `${x},${y}`;
     }).join(' L');
     
@@ -479,6 +502,105 @@ function displayHistoryChart(historyData: HistoryResponse): void {
     path.setAttribute('stroke-linejoin', 'round');
     
     svg.appendChild(path);
+    
+    // Create tooltip
+    const tooltip = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    tooltip.setAttribute('id', 'tooltip');
+    tooltip.style.cssText = `
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      pointer-events: none;
+    `;
+    
+    // Tooltip background
+    const tooltipRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    tooltipRect.setAttribute('rx', '6');
+    tooltipRect.setAttribute('ry', '6');
+    tooltipRect.setAttribute('fill', 'rgba(0, 0, 0, 0.8)');
+    tooltipRect.setAttribute('stroke', 'rgba(255, 255, 255, 0.3)');
+    tooltipRect.setAttribute('stroke-width', '1');
+    tooltip.appendChild(tooltipRect);
+    
+    // Tooltip text
+    const tooltipText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    tooltipText.setAttribute('fill', 'white');
+    tooltipText.setAttribute('font-size', '16');
+    tooltipText.setAttribute('font-family', 'monospace');
+    tooltipText.setAttribute('text-anchor', 'middle');
+    tooltip.appendChild(tooltipText);
+    
+    svg.appendChild(tooltip);
+    
+    // Add interactive points
+    historyData.data.forEach((point, index) => {
+      const x = padding + (index / (historyData.data.length - 1)) * (width - 2 * padding);
+      const y = padding + (1 - (point.value - smartMinValue) / smartValueRange) * (height - 2 * padding);
+      
+      // Invisible circle for hover detection (much larger)
+      const hoverCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      hoverCircle.setAttribute('cx', x.toString());
+      hoverCircle.setAttribute('cy', y.toString());
+      hoverCircle.setAttribute('r', '20');
+      hoverCircle.setAttribute('fill', 'transparent');
+      hoverCircle.setAttribute('stroke', 'none');
+      hoverCircle.style.cssText = `
+        cursor: pointer;
+        transition: all 0.2s ease;
+      `;
+      
+      // Visible point (larger)
+      const pointCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      pointCircle.setAttribute('cx', x.toString());
+      pointCircle.setAttribute('cy', y.toString());
+      pointCircle.setAttribute('r', '5');
+      pointCircle.setAttribute('fill', '#6366f1');
+      pointCircle.setAttribute('stroke', 'white');
+      pointCircle.setAttribute('stroke-width', '2');
+      pointCircle.style.cssText = `
+        opacity: 0;
+        transition: all 0.2s ease;
+      `;
+      
+      // Hover events
+      hoverCircle.addEventListener('mouseenter', () => {
+        pointCircle.style.opacity = '1';
+        pointCircle.setAttribute('r', '8');
+        pointCircle.setAttribute('fill', '#8b5cf6');
+        pointCircle.setAttribute('stroke', '#ffffff');
+        pointCircle.setAttribute('stroke-width', '3');
+        
+        // Show tooltip
+        const timestamp = new Date(point.timestamp).toLocaleString();
+        tooltipText.textContent = `${point.value.toFixed(2)}${point.unit || ''} • ${timestamp}`;
+        
+        // Position tooltip
+        const textBBox = tooltipText.getBBox();
+        const tooltipX = x;
+        const tooltipY = y - 30;
+        
+        tooltipRect.setAttribute('x', (tooltipX - textBBox.width/2 - 12).toString());
+        tooltipRect.setAttribute('y', (tooltipY - textBBox.height - 12).toString());
+        tooltipRect.setAttribute('width', (textBBox.width + 24).toString());
+        tooltipRect.setAttribute('height', (textBBox.height + 16).toString());
+        
+        tooltipText.setAttribute('x', tooltipX.toString());
+        tooltipText.setAttribute('y', tooltipY.toString());
+        
+        tooltip.style.opacity = '1';
+      });
+      
+      hoverCircle.addEventListener('mouseleave', () => {
+        pointCircle.style.opacity = '0';
+        pointCircle.setAttribute('r', '5');
+        pointCircle.setAttribute('fill', '#6366f1');
+        pointCircle.setAttribute('stroke', 'white');
+        pointCircle.setAttribute('stroke-width', '2');
+        tooltip.style.opacity = '0';
+      });
+      
+      svg.appendChild(hoverCircle);
+      svg.appendChild(pointCircle);
+    });
     
     // Add grid lines
     for (let i = 0; i <= 5; i++) {
@@ -493,22 +615,32 @@ function displayHistoryChart(historyData: HistoryResponse): void {
       svg.appendChild(line);
     }
     
-    // Add value labels
+    // Add value labels using smart range
     for (let i = 0; i <= 5; i++) {
-      const value = minValue + (i / 5) * valueRange;
+      const value = smartMinValue + (i / 5) * smartValueRange;
       const y = padding + (i / 5) * (height - 2 * padding);
       
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', '10');
       text.setAttribute('y', y.toString());
       text.setAttribute('fill', 'rgba(255, 255, 255, 0.6)');
-      text.setAttribute('font-size', '12');
+      text.setAttribute('font-size', '20');
       text.setAttribute('font-family', 'monospace');
       text.textContent = value.toFixed(1);
       svg.appendChild(text);
     }
+    
+    chart.appendChild(svg);
   } else {
     // No data message
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '100%');
+    svg.style.cssText = `
+      background: rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    `;
+    
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     text.setAttribute('x', '50%');
     text.setAttribute('y', '50%');
@@ -517,9 +649,9 @@ function displayHistoryChart(historyData: HistoryResponse): void {
     text.setAttribute('font-size', '16');
     text.textContent = 'No historical data available';
     svg.appendChild(text);
+    
+    chart.appendChild(svg);
   }
-
-  chart.appendChild(svg);
   chartContent.appendChild(info);
   chartContent.appendChild(chart);
   
