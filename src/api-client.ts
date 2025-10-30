@@ -71,7 +71,7 @@ class DigitalTwinApiClient {
   ];
   private currentProxyIndex: number = 0;
 
-  constructor(baseUrl: string = "https://digitaltwin-sensorplus-1.onrender.com") {
+  constructor(baseUrl: string = "https://digitaltwin-sensorplus-yd09.onrender.com") {
     this.baseUrl = baseUrl;
   }
 

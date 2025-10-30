@@ -22,8 +22,8 @@ function initializeApiUI(): void {
   }
   
   // Set default values for online server
-  serverUrlInput.value = "https://digitaltwin-sensorplus-1.onrender.com";
-  serverUrlInput.placeholder = "https://digitaltwin-sensorplus-1.onrender.com";
+  serverUrlInput.value = "https://digitaltwin-sensorplus-yd09.onrender.com";
+  serverUrlInput.placeholder = "https://digitaltwin-sensorplus-yd09.onrender.com";
   
   pollingIntervalInput.value = "5000";
   pollingIntervalInput.placeholder = "5000";

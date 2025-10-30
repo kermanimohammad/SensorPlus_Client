@@ -24,7 +24,7 @@
     "Added aggressive cache busting to force browser cache clear"
   ],
   "api": {
-    "base_url": "https://digitaltwin-sensorplus-1.onrender.com",
+    "base_url": "https://digitaltwin-sensorplus-yd09.onrender.com",
     "endpoints": [
       "/api/data",
       "/api/proxy/data", 
