@@ -7,7 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
 
-    <script type="module" crossorigin src="/assets/index-CT-b22j1.js"></script>
+    <script type="module" crossorigin src="/assets/index-wquosznD.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-D70QPJVG.css">
   </head>
   <body>
@@ -348,44 +348,11 @@
       // حذف JavaScript برای نمایش نمادها در dropdown
     </script>
     
-    <!-- Version Number -->
-    <div id="versionNumber" class="version-number">
-        Development Version - 2025.0.1.16
-    </div>
     
-    <script>
-      // بارگذاری ورژن از فایل JSON
-      async function loadVersion() {
-        try {
-          const response = await fetch('./version.json');
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
-          const versionData = await response.json();
-          const versionElement = document.getElementById('versionNumber');
-          if (versionElement) {
-            versionElement.textContent = `Development Version - ${versionData.version}`;
-            versionElement.title = `Build: ${versionData.build}\nFeatures: ${versionData.features.join(', ')}`;
-          }
-        } catch (error) {
-          console.warn('Could not load version.json:', error);
-          // Fallback to default version
-          const versionElement = document.getElementById('versionNumber');
-          if (versionElement) {
-            versionElement.textContent = 'Development Version - 2025.0.1.31';
-            versionElement.title = 'Build: 2025.01.09\nFeatures: Online deployment ready';
-          }
-        }
-      }
-      
-      // بارگذاری ورژن هنگام لود صفحه
-      loadVersion();
-
-    </script>
     
     <!-- Version Display -->
     <div id="version-display" class="version-display">
-      v2025.0.1.31
+      v2025.0.1.32
     </div>
   </body>
 </html>

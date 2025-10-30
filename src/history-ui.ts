@@ -615,10 +615,10 @@ function displayHistoryChart(historyData: HistoryResponse): void {
       svg.appendChild(line);
     }
     
-    // Add value labels using smart range
+    // Add value labels using smart range (top = max, bottom = min)
     for (let i = 0; i <= 5; i++) {
-      const value = smartMinValue + (i / 5) * smartValueRange;
       const y = padding + (i / 5) * (height - 2 * padding);
+      const value = smartMaxValue - (i / 5) * smartValueRange;
       
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', '10');
