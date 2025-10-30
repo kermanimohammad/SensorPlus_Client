@@ -7,7 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
 
-    <script type="module" crossorigin src="/assets/index-CbJrJ1VE.js"></script>
+    <script type="module" crossorigin src="/assets/index-CWDKp9pj.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-D70QPJVG.css">
   </head>
   <body>
@@ -285,6 +285,14 @@
     <!-- 3D host -->
     <div id="app"></div>
 
+    <!-- Global Loading Overlay -->
+    <div id="loadingOverlay" style="position: fixed; inset: 0; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); background: rgba(0,0,0,0.45); z-index: 2000;">
+      <div style="display:flex; flex-direction:column; align-items:center; gap:12px; color:#fff;">
+        <div style="width:54px; height:54px; border:4px solid rgba(255,255,255,0.25); border-top-color:#6366f1; border-radius:50%; animation: spin 0.9s linear infinite;"></div>
+        <div class="loading-text" style="font-weight:600; letter-spacing:0.3px;">Loading…</div>
+      </div>
+    </div>
+
     <!-- API Client (no external dependencies needed) -->
     <!-- App entry -->
 
@@ -352,7 +360,10 @@
     
     <!-- Version Display -->
       <div id="version-display" class="version-display">
-       v2025.0.1.33
+       v2025.0.1.34
       </div>
+    <style>
+      @keyframes spin { 0% { transform: rotate(0deg);} 100% { transform: rotate(360deg);} }
+    </style>
   </body>
 </html>

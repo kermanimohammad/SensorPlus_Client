@@ -12,6 +12,15 @@ import { GLB_WORLD_SCALE } from "./types";
 import { apiClient } from "./api-client";
 import { updateConnectionUI } from "./api-ui";
 
+// ---------- UI: Loading overlay helpers ----------
+function setProjectLoadingVisible(visible: boolean, text?: string) {
+  const overlay = document.getElementById('loadingOverlay');
+  if (!overlay) return;
+  overlay.style.display = visible ? 'flex' : 'none';
+  const t = overlay.querySelector('.loading-text') as HTMLElement | null;
+  if (t && text) t.textContent = text;
+}
+
 // ---------- Types (relaxed for browser FS API) ----------
 type DirHandle = any;
 type FileHandle = any;
@@ -323,11 +332,13 @@ export async function saveProjectToFolder() {
 
 // ---------- Public: Load legacy JSON/DTProj (best-effort) ----------
 export async function loadProjectFromFile(file: File): Promise<void> {
-  const text = await file.text();
-  const data = JSON.parse(text);
+  setProjectLoadingVisible(true, 'Loading project…');
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
 
-  clearAllEnvironments();
-  clearAllSensorsSoft();
+    clearAllEnvironments();
+    clearAllSensorsSoft();
 
   // بازیابی اطلاعات کانکشن API
   if (data.connection) {
@@ -400,15 +411,20 @@ export async function loadProjectFromFile(file: File): Promise<void> {
     console.warn("[Load JSON] Unrecognized project schema.");
   }
 
-  (window as any).selectedId = null;
-  console.info("[Load JSON] Done.");
+    (window as any).selectedId = null;
+    console.info("[Load JSON] Done.");
+  } finally {
+    setProjectLoadingVisible(false);
+  }
 }
 
 // ---------- Public: Load from .dtsp ----------
 export async function loadProjectFromDtsp(file: File | Blob): Promise<void> {
-  const zip = await JSZip.loadAsync(file);
-  const metaEntry = zip.file("project.json");
-  if (!metaEntry) throw new Error("project.json not found inside .dtsp");
+  setProjectLoadingVisible(true, 'Loading project…');
+  try {
+    const zip = await JSZip.loadAsync(file);
+    const metaEntry = zip.file("project.json");
+    if (!metaEntry) throw new Error("project.json not found inside .dtsp");
 
   const metaText = await metaEntry.async("string");
   const meta = JSON.parse(metaText) as {
@@ -472,8 +488,11 @@ export async function loadProjectFromDtsp(file: File | Blob): Promise<void> {
     }
   }
 
-  (window as any).selectedId = null;
-  console.info("[DTSP] Project loaded.");
+    (window as any).selectedId = null;
+    console.info("[DTSP] Project loaded.");
+  } finally {
+    setProjectLoadingVisible(false);
+  }
 }
 
 // ---------- Optional: small sensor utils to match possible imports ----------
