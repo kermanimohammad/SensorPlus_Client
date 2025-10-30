@@ -660,6 +660,34 @@ btnAdd.addEventListener("click", async () => {
   let handle: any;
   let id: string;
   
+  // Helper: generate next deviceId like temp-1, temp-2 ... per sensor type
+  function getDevicePrefix(t: SensorType): string {
+    switch (t) {
+      case "temperature": return "temp-";
+      case "humidity": return "hum-";
+      case "co2": return "co2-";
+      case "light": return "light-";
+      case "solar": return "solar-";
+      default: return `${t}-` as string;
+    }
+  }
+
+  function getNextDeviceIdForType(t: SensorType): string {
+    const prefix = getDevicePrefix(t);
+    let maxNum = 0;
+    sensors.forEach((existing) => {
+      if (existing.type === t && existing.deviceId && existing.deviceId.startsWith(prefix)) {
+        const tail = existing.deviceId.slice(prefix.length);
+        const m = /^([0-9]+)$/.exec(tail);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (!Number.isNaN(n) && n > maxNum) maxNum = n;
+        }
+      }
+    });
+    return `${prefix}${maxNum + 1}`;
+  }
+
   try {
     console.log('[Add Sensor] Starting...');
     await prefabsReady;
@@ -669,19 +697,13 @@ btnAdd.addEventListener("click", async () => {
     const type = (catalog.value as SensorType) || "temperature";
     console.log('[Add Sensor] Creating sensor:', { id, type });
     
-    // تنظیم deviceId پیش‌فرض بر اساس نوع سنسور
-    const defaultDeviceIds: Record<SensorType, string> = {
-      temperature: "temp-1",
-      humidity: "hum-1", 
-      co2: "co2-1",
-      light: "light-1",
-      solar: "solar-plant"
-    };
-    
+    // تولید deviceId ترتیبی بر اساس نوع سنسور
+    const autoDeviceId = type === "solar" ? "solar-plant" : getNextDeviceIdForType(type);
+
     s = {
       id, type,
       label: `${type}-${id.slice(2)}`,
-      deviceId: defaultDeviceIds[type] || `${type.slice(0,3)}-${Math.floor(100 + Math.random() * 900)}`,
+      deviceId: autoDeviceId,
       position: { x: 0, y: 0.7, z: 0 },
       // color: palette[type], // Removed to preserve original GLB materials
       scale: 1.0,
