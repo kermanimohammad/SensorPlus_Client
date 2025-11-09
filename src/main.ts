@@ -1297,8 +1297,8 @@ wireApiButtons();
 //   }
 // }, 2000);
 
-// Application startup - Version 2025.0.1.32
-console.log('[Main] Application started - Version 2025.0.1.32 - Build:', Date.now());
+// Application startup - Version 2025.0.1.35
+console.log('[Main] Application started - Version 2025.0.1.35 - Build:', Date.now());
 console.log('[Main] Database client configured for online compatibility');
 console.log('[Main] API endpoints configured for both local and online environments');
 

@@ -1,6 +1,6 @@
 {
-  "version": "2025.0.1.34",
-  "build": "2025.01.09",
+  "version": "2025.0.1.35",
+  "build": "2025.01.10",
   "name": "DigitalTwin SensorPlus Backend",
   "description": "Complete backend API with dashboard and frontend integration",
   "features": [
@@ -21,7 +21,8 @@
     "Updated database client to use /health endpoint for online compatibility",
     "Added detailed logging for environment detection debugging",
     "Fixed database client to force online mode for production",
-    "Added aggressive cache busting to force browser cache clear"
+    "Added aggressive cache busting to force browser cache clear",
+    "Fixed popup positioning to maintain consistent distance from sensors across different resolutions and browser zoom levels"
   ],
   "api": {
     "base_url": "https://digitaltwin-sensorplus-yd09.onrender.com",
@@ -54,6 +55,6 @@
   "deployment": {
     "platform": "Render.com",
     "status": "production_ready",
-    "last_deploy": "2025.01.09"
+    "last_deploy": "2025.01.10"
   }
 }

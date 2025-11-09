@@ -1,6 +1,6 @@
 import * as BABYLON from "@babylonjs/core";
 import "@babylonjs/loaders";
-import { scene, camera, startRenderLoop } from "./core/scene";
+import { scene, camera, canvas, startRenderLoop } from "./core/scene";
 import { GLB_WORLD_SCALE, ENABLE_PULSE } from "./types";
 import type { SensorNode, SensorType, Reading } from "./types";
 import { updateEnvironmentList } from "./env";
@@ -366,15 +366,50 @@ export function updateAllPermanentPopups(): void {
     
     if (handle) {
       const pos = handle.getAbsolutePosition();
+      const engine = scene.getEngine();
+      
+      // Get actual canvas dimensions (accounts for browser zoom and CSS scaling)
+      // getBoundingClientRect gives us the actual rendered size on screen
+      const canvasRect = canvas.getBoundingClientRect();
+      const canvasWidth = canvasRect.width || canvas.clientWidth || engine.getRenderWidth();
+      const canvasHeight = canvasRect.height || canvas.clientHeight || engine.getRenderHeight();
+      
+      // Get canvas position on screen (needed for absolute positioning)
+      const canvasLeft = canvasRect.left || 0;
+      const canvasTop = canvasRect.top || 0;
+      
+      // Use render dimensions for projection (internal rendering)
+      const renderWidth = engine.getRenderWidth();
+      const renderHeight = engine.getRenderHeight();
+      
       const p = BABYLON.Vector3.Project(
         pos, 
         BABYLON.Matrix.Identity(), 
         scene.getTransformMatrix(), 
-        camera.viewport.toGlobal(scene.getEngine().getRenderWidth(), scene.getEngine().getRenderHeight())
+        camera.viewport.toGlobal(renderWidth, renderHeight)
       );
       if (p) {
-        popup.style.left = Math.round(p.x + 16) + "px";
-        popup.style.top = Math.round(p.y - 16) + "px";
+        // Scale the projected coordinates to match actual canvas size (accounts for browser zoom)
+        // This is necessary because projection uses render size, but we need screen coordinates
+        const scaleX = canvasWidth / renderWidth;
+        const scaleY = canvasHeight / renderHeight;
+        
+        // Calculate offset relative to actual canvas size for consistent positioning
+        // This ensures popups appear at the same visual distance regardless of browser zoom
+        const baseOffset = 16; // Base offset in pixels (at 100% zoom)
+        // Scale offset based on actual canvas size to maintain visual consistency
+        const viewportScale = Math.min(
+          Math.max(canvasWidth / 1920, canvasHeight / 1080),
+          1.5
+        );
+        const offsetX = baseOffset * viewportScale;
+        const offsetY = baseOffset * viewportScale;
+        
+        // Apply scaling to projected coordinates, add canvas position, and add offset
+        // Since popup uses position: fixed, coordinates are relative to viewport
+        // canvasLeft and canvasTop are already relative to viewport, so we add them
+        popup.style.left = Math.round(canvasLeft + p.x * scaleX + offsetX) + "px";
+        popup.style.top = Math.round(canvasTop + p.y * scaleY - offsetY) + "px";
       }
     }
   });
